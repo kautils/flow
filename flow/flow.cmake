@@ -8,14 +8,14 @@ git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v0.0.1/CMakeFetchKautilModule.cmake)
 
 
-CMakeFetchKautilModule(sqlite
-        GIT https://github.com/kautils/sqlite3.git
-        REMOTE origin
-        TAG v2.0.1.0
-        CMAKE_CONFIGURE_MACRO -DCMAKE_CXX_FLAGS="-O2" -DCMAKE_CXX_STANDARD=23
-        CMAKE_BUILD_OPTION -j ${${m}_thread_cnt}
-        )
-find_package(KautilSqlite3.2.0.1.0.static REQUIRED)
+#CMakeFetchKautilModule(sqlite
+#        GIT https://github.com/kautils/sqlite3.git
+#        REMOTE origin
+#        TAG v2.0.1.0
+#        CMAKE_CONFIGURE_MACRO -DCMAKE_CXX_FLAGS="-O2" -DCMAKE_CXX_STANDARD=23
+#        CMAKE_BUILD_OPTION -j ${${m}_thread_cnt}
+#        )
+#find_package(KautilSqlite3.2.0.1.0.static REQUIRED)
 
 CMakeFetchKautilModule(sharedlib
         GIT https://github.com/kautils/sharedlib.git
@@ -35,7 +35,7 @@ set(${module_name}_common_pref
     MODULE_NAME ${module_name}
     INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<INSTALL_INTERFACE:include> ${CMAKE_CURRENT_LIST_DIR} 
     SOURCES ${srcs}
-    LINK_LIBS kautil::sqlite3::2.0.1.0::static kautil::sharedlib::0.0.1::static 
+    LINK_LIBS  kautil::sharedlib::0.0.1::static 
     EXPORT_NAME_PREFIX ${PROJECT_NAME}
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion

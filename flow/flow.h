@@ -26,7 +26,7 @@ struct filter{
     const char *(*id)(filter *)=0;
     const char *(*id_hr)(filter *)=0;
     int (*database_type)(filter *)=0;
-    int (*setup_database)(filter *)=0;
+//    int (*setup_database)(filter *)=0;
     int (*save)(filter *)=0;
     void* m=0;
     filter_database_handler * db=0;
