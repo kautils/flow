@@ -46,9 +46,7 @@ struct filter_handler_lookup_table{
 
 struct filter_first_member;
 struct filter_handler{ 
-    filter * previous=0;
-    filter * current=0;
-    uint32_t start_offset=2;
+    uint32_t start_offset=0;
     std::vector<filter*> filters;
     std::vector<filter_handler_lookup_table*> lookup_releaser;
     std::string local_uri;
@@ -111,8 +109,6 @@ int filter_handler_push_with_lookup_table(filter_handler * fhdl
 int filter_handler_execute(filter_handler * fhdl){
     for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
         auto f = fhdl->filters[i];
-        f->hdl->previous = f->hdl->current;
-        f->hdl->current = f;
         f->main(f);
         f->save(f);
     }
@@ -123,10 +119,6 @@ int filter_handler_execute(filter_handler * fhdl){
 void filter_handler_set_io_length(filter_handler * hdl,uint64_t len){ hdl->io_len=len; }
 void filter_handler_set_local_uri(filter_handler * hdl,const char * uri){ hdl->local_uri = uri; }
 int filter_handler_push(filter_handler * fhdl,filter* f){
-    if(fhdl->filters.empty()){
-        fhdl->previous= nullptr;
-        fhdl->current= f;
-    }
     f->pos=fhdl->filters.size();
     fhdl->filters.push_back(f);
     return 0;
@@ -207,13 +199,8 @@ int filter_database_save(filter * f){
 
 
 
-void* filter_input(filter * f) { 
-    return f->hdl->filters[f->pos-1]->output(f->hdl->filters[f->pos-1]);
-}
-
-uint64_t filter_input_bytes(filter * f) { 
-    return f->hdl->filters[f->pos-1]->output_bytes(f->hdl->filters[f->pos-1]);
-}
+void* filter_input(filter * f) { return f->hdl->filters[f->pos-1]->output(f->hdl->filters[f->pos-1]); }
+uint64_t filter_input_bytes(filter * f) { return f->hdl->filters[f->pos-1]->output_bytes(f->hdl->filters[f->pos-1]); }
 
 
 
