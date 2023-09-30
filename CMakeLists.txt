@@ -1,3 +1,5 @@
+
+
 cmake_minimum_required(VERSION 3.20)
 set(__version 0.0.1)
 project(KautilFlow.${__version}
@@ -6,7 +8,16 @@ project(KautilFlow.${__version}
         )
 unset(__version)
 
-include(${CMAKE_CURRENT_LIST_DIR}/flow.cmake)
+
+CMakeSyncLocalRepositoryWithSymLink(
+    LOCAL "D:/git.local/local"
+    REPOS filter.arithmetic.subtract flow.db.sqlite3
+    DESTINATION ${CMAKE_BINARY_DIR}/test
+)
+
+include(${CMAKE_CURRENT_LIST_DIR}/flow/flow.cmake)
+
+
 
 
 
