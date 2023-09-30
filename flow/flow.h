@@ -19,6 +19,10 @@ struct filter{
     const char *(*id)(filter *)=0;
     const char *(*id_hr)(filter *)=0;
     int (*save)(filter *)=0;
+    
+    void (*state_reset)(filter * f)=0;
+    bool (*state_next)(filter * f)=0;
+    const char * (*state_id)(filter * f)=0;
     void* m=0;
     filter_database_handler * db=0;
     flow * hdl=0;

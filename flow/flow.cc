@@ -18,7 +18,7 @@ filter_database_handler* filter_database_handler_initialize(const char *);
 struct filter_database_handler{
     filter_database_handler* (*alloc)(const char *)=filter_database_handler_initialize;
     void (*free)(void * hdl)=0;
-    int (*set_uri)(void * hdl,const char * prfx,const char * id)=0;
+    int (*set_uri)(void * hdl,const char * prfx,const char * filter_id,const char * state_id)=0;
     int (*setup)(void * hdl)=0;
     int (*set_output)(void * hdl,const void * begin,const void * end)=0;
     int (*set_input)(void * hdl,const void * begin,const void * end)=0;
@@ -38,7 +38,9 @@ struct filter_database_handler{
 using output_t = void*(*)(filter *);
 using output_bytes_t = uint64_t(*)(filter *);
 using filter_id_t = const char* (*)(filter *);
-using database_type_t = int (*)(filter *);
+using state_reset_t = void (*)(filter *);
+using state_next_t = bool (*)(filter *);
+using state_id_t = const char* (*)(filter *);
 
 
 
@@ -79,8 +81,12 @@ filter * flow_lookup(flow * fhdl,filter_lookup_table * flookup){
         f->input_bytes = filter_input_bytes;
         f->id= (filter_id_t)filter_lookup_table_get_value(flookup,"id");
         f->id_hr= (filter_id_t)filter_lookup_table_get_value(flookup,"id_hr");
-        //f->database_type =(database_type_t) filter_lookup_table_get_value(flookup,"database_type");
+        
+        f->state_next= (state_next_t)filter_lookup_table_get_value(flookup,"state_next");
+        f->state_reset= (state_reset_t)filter_lookup_table_get_value(flookup,"state_reset");
+        f->state_id= (state_id_t)filter_lookup_table_get_value(flookup,"state_id");
         f->save=filter_database_save;
+        
         f->m= filter_lookup_table_get_value(flookup,"member");
     }
     return f;
@@ -135,7 +141,7 @@ void* filter_first_member_output(filter * f){ return reinterpret_cast<filter_fir
 uint64_t filter_first_member_output_bytes(filter * f){ 
     return reinterpret_cast<filter_first_member*>(f->m)->o_bytes; 
 }
-int _flow_input(flow * fhdl,void * data,int32_t block_size){
+int _flow_push_input(flow * fhdl,void * data,int32_t block_size){
     fhdl->lookup_releaser.emplace_back(new flow_lookup_table{
         .filter=new filter{}
     });
@@ -274,8 +280,7 @@ int filter_database_setup(filter * f,const char * so) {
     
     filter_database_handler_set_option(f->db,f->option);
     f->db->set_io_length(instance, f->hdl->io_len);
-    f->db->set_uri(instance, f->hdl->local_uri.data(), f->id_hr(f));
-
+    f->db->set_uri(instance, f->hdl->local_uri.data(), f->id_hr(f),f->state_id(f));
     f->db->last_option = f->option;
     return f->db->setup(instance); 
 }
@@ -294,10 +299,10 @@ int flow_push_with_library(flow * fhdl,const char * so_filter){
 }
 
 
-int flow_input(flow * fhdl,void * data,int32_t block_size){
-    // "_flow_input(fhdl,nullptr,0)" is because to omit a branch when accessing input value via output function 
+int flow_push_input(flow * fhdl,void * data,int32_t block_size){
+    // "_flow_push_input(fhdl,nullptr,0)" is because to omit a branch when accessing input value via output function 
     fhdl->start_offset=2;
-    return 0 == _flow_input(fhdl,nullptr,0) + _flow_input(fhdl,data,block_size);
+    return 0 == _flow_push_input(fhdl,nullptr,0) + _flow_push_input(fhdl,data,block_size);
 }
 
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
@@ -311,18 +316,31 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
         auto fhdl = flow_initialize();
         flow_set_io_length(fhdl,input_len);
         flow_set_local_uri(fhdl,"./");
+        // prepair repository 
+        // add states
         {
-            flow_input(fhdl,arr,sizeof(double));
+            flow_push_input(fhdl,arr,sizeof(double));
             flow_push_with_library(fhdl,so_filter);
-            for(auto i = fhdl->start_offset; i < fhdl->filters.size();++i){
-                auto f=fhdl->filters[i];
+
+            {
+                auto f = fhdl->filters[2];
                 f->option=FILTER_DATABASE_OPTION_OVERWRITE | FILTER_DATABASE_OPTION_WITHOUT_ROWID;
-                filter_database_setup(f,database_so);
+                f->state_reset(f);
+                do{
+                    filter_database_setup(f,database_so);
+                    printf("%s\n",f->state_id(f));
+                    flow_execute(fhdl);
+                }while(f->state_next(f));
             }
-            flow_execute(fhdl);
+            
+            
+            
         }
         flow_free(fhdl);
     }
+    
+    
+    
     
     
     return 0;

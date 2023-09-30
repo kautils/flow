@@ -8,15 +8,6 @@ git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v0.0.1/CMakeFetchKautilModule.cmake)
 
 
-#CMakeFetchKautilModule(sqlite
-#        GIT https://github.com/kautils/sqlite3.git
-#        REMOTE origin
-#        TAG v2.0.1.0
-#        CMAKE_CONFIGURE_MACRO -DCMAKE_CXX_FLAGS="-O2" -DCMAKE_CXX_STANDARD=23
-#        CMAKE_BUILD_OPTION -j ${${m}_thread_cnt}
-#        )
-#find_package(KautilSqlite3.2.0.1.0.static REQUIRED)
-
 CMakeFetchKautilModule(sharedlib
         GIT https://github.com/kautils/sharedlib.git
         REMOTE origin
