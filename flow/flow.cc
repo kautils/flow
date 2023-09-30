@@ -8,6 +8,12 @@
 #include "kautil/sharedlib/sharedlib.h"
 
 
+struct filter_lookup_elem{
+    const char * key = 0; 
+    void * value = nullptr;
+}__attribute__((aligned(sizeof(uintptr_t))));
+
+
 filter_database_handler* filter_database_handler_initialize(const char *);
 struct filter_database_handler{
     filter_database_handler* (*alloc)(const char *)=filter_database_handler_initialize;
@@ -36,7 +42,7 @@ using database_type_t = int (*)(filter *);
 
 
 
-struct filter_handler_lookup_table{
+struct flow_lookup_table{
    filter_lookup_table * (*initialize_lookup_table)()=0;
    void (*free_lookup_table)(filter_lookup_table * f)=0;
    filter_lookup_table * lookup_table=0;
@@ -45,10 +51,10 @@ struct filter_handler_lookup_table{
 };
 
 struct filter_first_member;
-struct filter_handler{ 
+struct flow{ 
     uint32_t start_offset=0;
     std::vector<filter*> filters;
-    std::vector<filter_handler_lookup_table*> lookup_releaser;
+    std::vector<flow_lookup_table*> lookup_releaser;
     std::string local_uri;
     uint64_t io_len=0;
     filter_first_member * first_member=0;
@@ -56,14 +62,14 @@ struct filter_handler{
 
 struct filter_database_handler;
 filter_database_handler* filter_database_handler_initialize(filter * f);
-filter_handler* filter_handler_initialize(){ return new filter_handler{}; }
+flow* flow_initialize(){ return new flow{}; }
 
 
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
 int filter_database_setup(filter * f);
 int filter_database_save(filter * f);
-filter * filter_handler_lookup(filter_handler * fhdl,filter_lookup_table * flookup){
+filter * flow_lookup(flow * fhdl,filter_lookup_table * flookup){
     auto f = new filter{};{
         f->hdl=fhdl;
         f->main= (decltype(f->main))filter_lookup_table_get_value(flookup,"fmain");
@@ -73,40 +79,40 @@ filter * filter_handler_lookup(filter_handler * fhdl,filter_lookup_table * flook
         f->input_bytes = filter_input_bytes;
         f->id= (filter_id_t)filter_lookup_table_get_value(flookup,"id");
         f->id_hr= (filter_id_t)filter_lookup_table_get_value(flookup,"id_hr");
-        f->database_type =(database_type_t) filter_lookup_table_get_value(flookup,"database_type");
+        //f->database_type =(database_type_t) filter_lookup_table_get_value(flookup,"database_type");
         f->save=filter_database_save;
         f->m= filter_lookup_table_get_value(flookup,"member");
     }
     return f;
 }
 
-filter_handler_lookup_table* _filter_handler_push_with_lookup_table(filter_handler * fhdl
+flow_lookup_table* _flow_push_with_lookup_table(flow * fhdl
                                           ,filter_lookup_table * (*filter_lookup_table_initialize)()
                                           ,void (*filter_lookup_table_free)(filter_lookup_table * f)){
     if(auto ltb = filter_lookup_table_initialize()){
-        auto f  =filter_handler_lookup(fhdl,ltb);
-        fhdl->lookup_releaser.emplace_back(new filter_handler_lookup_table{
+        auto f  =flow_lookup(fhdl,ltb);
+        fhdl->lookup_releaser.emplace_back(new flow_lookup_table{
             .initialize_lookup_table = filter_lookup_table_initialize
             ,.free_lookup_table = filter_lookup_table_free
             ,.lookup_table = ltb
             ,.filter=f
         });
         if(f){
-            filter_handler_push(fhdl,f);
+            flow_push(fhdl,f);
             return fhdl->lookup_releaser.back();
         }
     }
     return nullptr;
 }
 
-int filter_handler_push_with_lookup_table(filter_handler * fhdl
+int flow_push_with_lookup_table(flow * fhdl
                                           ,filter_lookup_table * (*filter_lookup_table_initialize)()
                                           ,void (*filter_lookup_table_free)(filter_lookup_table * f)){
-    return _filter_handler_push_with_lookup_table(fhdl,filter_lookup_table_initialize,filter_lookup_table_free) ? 0:1;
+    return _flow_push_with_lookup_table(fhdl,filter_lookup_table_initialize,filter_lookup_table_free) ? 0:1;
 }
 
 
-int filter_handler_execute(filter_handler * fhdl){
+int flow_execute(flow * fhdl){
     for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
         auto f = fhdl->filters[i];
         f->main(f);
@@ -116,9 +122,9 @@ int filter_handler_execute(filter_handler * fhdl){
 }
 
 
-void filter_handler_set_io_length(filter_handler * hdl,uint64_t len){ hdl->io_len=len; }
-void filter_handler_set_local_uri(filter_handler * hdl,const char * uri){ hdl->local_uri = uri; }
-int filter_handler_push(filter_handler * fhdl,filter* f){
+void flow_set_io_length(flow * hdl,uint64_t len){ hdl->io_len=len; }
+void flow_set_local_uri(flow * hdl,const char * uri){ hdl->local_uri = uri; }
+int flow_push(flow * fhdl,filter* f){
     f->pos=fhdl->filters.size();
     fhdl->filters.push_back(f);
     return 0;
@@ -129,8 +135,8 @@ void* filter_first_member_output(filter * f){ return reinterpret_cast<filter_fir
 uint64_t filter_first_member_output_bytes(filter * f){ 
     return reinterpret_cast<filter_first_member*>(f->m)->o_bytes; 
 }
-int _filter_handler_input(filter_handler * fhdl,void * data,int32_t block_size){
-    fhdl->lookup_releaser.emplace_back(new filter_handler_lookup_table{
+int _flow_input(flow * fhdl,void * data,int32_t block_size){
+    fhdl->lookup_releaser.emplace_back(new flow_lookup_table{
         .filter=new filter{}
     });
     
@@ -144,12 +150,12 @@ int _filter_handler_input(filter_handler * fhdl,void * data,int32_t block_size){
         input->output=filter_first_member_output;
         input->output_bytes=filter_first_member_output_bytes;
     }
-    filter_handler_push(fhdl,input);
+    flow_push(fhdl,input);
     return 0;
 }
 
 
-void filter_handler_free(filter_handler * fhdl){ 
+void flow_free(flow * fhdl){ 
     for(auto & e : fhdl->lookup_releaser){
         {
             auto f = e->filter;
@@ -277,21 +283,21 @@ int filter_database_setup(filter * f,const char * so) {
 
 
 
-int filter_handler_push_with_library(filter_handler * fhdl,const char * so_filter){
+int flow_push_with_library(flow * fhdl,const char * so_filter){
     if(auto dl = kautil_dlopen(so_filter,rtld_lazy|rtld_nodelete)){
         auto tb_init = (lookup_table_initialize_t) kautil_dlsym(dl,"lookup_table_initialize");
         auto sizeof_ptr = (size_of_pointer_t) kautil_dlsym(dl,"size_of_pointer");
         auto tb_free = (lookup_table_free_t) kautil_dlsym(dl,"lookup_table_free");
-        if(auto insert = _filter_handler_push_with_lookup_table(fhdl,tb_init,tb_free))insert->dl = dl;
+        if(auto insert = _flow_push_with_lookup_table(fhdl,tb_init,tb_free))insert->dl = dl;
     } 
     return 1;
 }
 
 
-int filter_handler_input(filter_handler * fhdl,void * data,int32_t block_size){
-    // "_filter_handler_input(fhdl,nullptr,0)" is because to omit a branch when accessing input value via output function 
+int flow_input(flow * fhdl,void * data,int32_t block_size){
+    // "_flow_input(fhdl,nullptr,0)" is because to omit a branch when accessing input value via output function 
     fhdl->start_offset=2;
-    return 0 == _filter_handler_input(fhdl,nullptr,0) + _filter_handler_input(fhdl,data,block_size);
+    return 0 == _flow_input(fhdl,nullptr,0) + _flow_input(fhdl,data,block_size);
 }
 
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
@@ -302,20 +308,20 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
         auto arr = new double[input_len];
         for(auto i = 0; i < input_len; ++i)arr[i] = i;
 
-        auto fhdl = filter_handler_initialize();
-        filter_handler_set_io_length(fhdl,input_len);
-        filter_handler_set_local_uri(fhdl,"./");
+        auto fhdl = flow_initialize();
+        flow_set_io_length(fhdl,input_len);
+        flow_set_local_uri(fhdl,"./");
         {
-            filter_handler_input(fhdl,arr,sizeof(double));
-            filter_handler_push_with_library(fhdl,so_filter);
+            flow_input(fhdl,arr,sizeof(double));
+            flow_push_with_library(fhdl,so_filter);
             for(auto i = fhdl->start_offset; i < fhdl->filters.size();++i){
                 auto f=fhdl->filters[i];
                 f->option=FILTER_DATABASE_OPTION_OVERWRITE | FILTER_DATABASE_OPTION_WITHOUT_ROWID;
                 filter_database_setup(f,database_so);
             }
-            filter_handler_execute(fhdl);
+            flow_execute(fhdl);
         }
-        filter_handler_free(fhdl);
+        flow_free(fhdl);
     }
     
     
