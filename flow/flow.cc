@@ -23,9 +23,9 @@ filter_database_handler* filter_database_handler_lookup(filter * ,const char *);
 //filter_database_handler* filter_database_handler_lookup_with_filter(filter * f);
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
+uint64_t filter_input_size(filter *f);
 int filter_database_save(filter * f);
 void filter_free(filter * f);
-
 
 struct filter_lookup_elem{
     const char * key = 0; 
@@ -42,9 +42,9 @@ struct filter_database_handler{
     int (*uri_hasher)(const char * prfx,const char * filter_id,const char * state_id)=0;
     int (*set_uri)(void * hdl,const char * prfx,const char * filter_id,const char * state_id)=0;
     int (*setup)(void * hdl)=0;
-    int (*set_output)(void * hdl,const void * begin,const void * end)=0;
-    int (*set_input)(void * hdl,const void * begin,const void * end)=0;
-    int (*set_output_size)(void * hdl,uint64_t)=0;
+    int (*set_index)(void * hdl,uint64_t * begin)=0; // only begin are needed because it's size is the same as output. 
+    int (*set_output)(void * hdl,const void * begin,uint64_t,uint64_t)=0;
+    int (*set_input)(void * hdl,const void * begin,uint64_t block_size,uint64_t nitems)=0;
     int (*save)(void * hdl)=0;
     int (*sw_overwrite)(void * hdl,bool)=0;
     int (*sw_without_rowid)(void * hdl,bool)=0;
@@ -59,6 +59,7 @@ struct filter_database_handler{
 
 
 
+using index_t = uint64_t* (*)(filter *);
 using output_t = void*(*)(filter *);
 using output_size_t = uint64_t (*)(filter *);
 using output_bytes_t = uint64_t(*)(filter *);
@@ -116,7 +117,8 @@ bool flow_check_filter_validity(filter * f){
 }
 
 
-
+///@note default is null == no limitation == length of input and output is the same.
+uint64_t * filter_index(){ return nullptr; }
 
 filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup){
     auto f =filter_factory();{
@@ -125,8 +127,13 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
         f->output= (output_t)filter_lookup_table_get_value(flookup,"output");
         f->output_bytes= (output_bytes_t)filter_lookup_table_get_value(flookup,"output_bytes");
         f->output_size= (output_size_t)filter_lookup_table_get_value(flookup,"output_size");
+        f->index= (index_t)filter_lookup_table_get_value(flookup,"index");
+        f->index = (index_t) 
+                (!uintptr_t(f->index)*uintptr_t(filter_index) 
+                 +uintptr_t(f->index));
         f->input = filter_input;
         f->input_bytes = filter_input_bytes;
+        f->input_size = filter_input_size;
         f->id= (filter_id_t)filter_lookup_table_get_value(flookup,"id");
         f->id_hr= (filter_id_t)filter_lookup_table_get_value(flookup,"id_hr");
         f->state_next= (state_next_t)filter_lookup_table_get_value(flookup,"state_next");
@@ -184,11 +191,12 @@ filter_database_handler* filter_database_handler_lookup(filter* f,const char * s
                                  +uintptr_t(res->uri_hasher)); 
                     }
                     
+                    res->set_index =  (typeof(res->set_index)) filter_lookup_table_get_value(lookup_tb,"set_index");
                     res->set_uri =  (typeof(res->set_uri)) filter_lookup_table_get_value(lookup_tb,"set_uri");
                     res->setup =  (typeof(res->setup)) filter_lookup_table_get_value(lookup_tb,"setup");
                     res->set_output =  (typeof(res->set_output)) filter_lookup_table_get_value(lookup_tb,"set_output");
                     res->set_input =  (typeof(res->set_input)) filter_lookup_table_get_value(lookup_tb,"set_input");
-                    res->set_output_size =  (typeof(res->set_output_size)) filter_lookup_table_get_value(lookup_tb,"set_output_size");
+//                    res->set_output_size =  (typeof(res->set_output_size)) filter_lookup_table_get_value(lookup_tb,"set_output_size");
                     res->save =  (typeof(res->save)) filter_lookup_table_get_value(lookup_tb,"save");
                     res->sw_overwrite =  (typeof(res->sw_overwrite)) filter_lookup_table_get_value(lookup_tb,"sw_overwrite");
                     res->sw_without_rowid =  (typeof(res->sw_without_rowid)) filter_lookup_table_get_value(lookup_tb,"sw_without_rowid");
@@ -334,14 +342,17 @@ int filter_database_handler_set_option(filter_database_handler * hdl,int op){
 int filter_database_save(filter * f){
     auto db =f->m->db; 
     if(0== !db + !f->save){
-        db->set_output_size(db->instance, f->output_size(f));
-        
         auto instance = db->instance;
-        auto out = (const char *) f->output(f);
-        db->set_output(instance, out, out + f->output_bytes(f));
-    
+        
         auto in = (const char *) f->input(f);
-        db->set_input(instance, in, in + f->input_bytes(f));
+        db->set_input(instance, in, f->input_bytes(f)/f->input_size(f),f->input_size(f));
+        
+        auto out = (const char *) f->output(f);
+        db->set_output(instance, out, f->output_bytes(f)/f->output_size(f),f->output_size(f));
+        
+        auto index = f->index(f);
+        db->set_index(instance, index/*,index + f->output_size(f)*/);
+    
         
         return db->save(instance);
     } 
@@ -351,6 +362,7 @@ int filter_database_save(filter * f){
 
 
 void* filter_input(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output(f->m->hdl->filters[f->m->pos-1]); }
+uint64_t filter_input_size(filter *f){ return f->m->hdl->filters[f->m->pos-1]->output_size(f->m->hdl->filters[f->m->pos-1]); }
 uint64_t filter_input_bytes(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output_bytes(f->m->hdl->filters[f->m->pos-1]); }
 
 
@@ -407,7 +419,6 @@ int flow_set_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems){
 
 
 int flow_push_with_library(flow * fhdl,const char * so_filter){
-//    if(auto dl = kautil_dlopen(so_filter,rtld_lazy|rtld_nodelete)){
     if(auto dl = flow_dlopen(fhdl,so_filter,rtld_lazy|rtld_nodelete)){
         auto tb_init = (lookup_table_initialize_t) kautil_dlsym(dl,"lookup_table_initialize");
         auto sizeof_ptr = (size_of_pointer_t) kautil_dlsym(dl,"size_of_pointer");
@@ -452,8 +463,17 @@ int flow_execute_all_state(flow * fhdl){
 
 #include <numeric>
 
-int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
 
+struct ig{
+    void * data=0;
+    uint64_t size=0;
+};
+
+
+int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
+    
+    // miss : in database, io is treated as the same length  
+    
     {
         remove("R:\\flow\\build\\android\\filter.arithmetic.subtract\\KautilFilterArithmeticSubtract.0.0.1\\4724af5.sqlite");
 

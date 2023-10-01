@@ -12,10 +12,12 @@ struct flow;
 struct filter_internal;
 struct filter{
     int (*main)(filter * m)=0;
+    uint64_t * (*index)(filter *)=0;
     void * (*output)(filter *)=0;
     uint64_t(*output_bytes)(filter *)=0;
     uint64_t(*output_size)(filter *)=0;
     void * (*input)(filter *)=0; 
+    uint64_t(*input_size)(filter *)=0;
     uint64_t(*input_bytes)(filter *)=0; 
     const char *(*id)(filter *)=0;
     const char *(*id_hr)(filter *)=0;
