@@ -21,6 +21,7 @@ static filter * filter_factory(){ return new filter{.m=new filter_internal}; }
 int flow_push_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems);
 filter_database_handler* filter_database_handler_lookup(filter * ,const char *);
 //filter_database_handler* filter_database_handler_lookup_with_filter(filter * f);
+bool filter_input_is_uniformed(filter * f);
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
 uint64_t filter_input_size(filter *f);
@@ -49,6 +50,7 @@ struct filter_database_handler{
     int (*sw_overwrite)(void * hdl,bool)=0;
     int (*sw_without_rowid)(void * hdl,bool)=0;
     int (*sw_uniformed)(void * hdl,bool)=0;
+    int (*sw_key_is_uniformed)(void * hdl,bool)=0;
     void * instance=0;
     void * dl=0;
     int last_option=-1;
@@ -67,7 +69,7 @@ using filter_id_t = const char* (*)(filter *);
 using state_reset_t = void (*)(filter *);
 using state_next_t = bool (*)(filter *);
 using state_id_t = const char* (*)(filter *);
-using is_uniformed_t = bool (*)(filter *);
+using output_is_uniformed_t = bool (*)(filter *);
 using database_close_always_t = bool (*)(filter *);
 using size_of_pointer_t =  uint64_t(*)();
 using lookup_table_initialize_t = filter_lookup_table*(*)();
@@ -134,6 +136,8 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
         f->input = filter_input;
         f->input_bytes = filter_input_bytes;
         f->input_size = filter_input_size;
+        f->input_is_uniformed = filter_input_is_uniformed; 
+        
         f->id= (filter_id_t)filter_lookup_table_get_value(flookup,"id");
         f->id_hr= (filter_id_t)filter_lookup_table_get_value(flookup,"id_hr");
         f->state_next= (state_next_t)filter_lookup_table_get_value(flookup,"state_next");
@@ -141,10 +145,10 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
         f->state_id= (state_id_t)filter_lookup_table_get_value(flookup,"state_id");
         f->save=filter_database_save;
         {
-            f->is_uniformed= (is_uniformed_t)filter_lookup_table_get_value(flookup,"is_uniformed");
-            f->is_uniformed = (is_uniformed_t) 
-                      (uintptr_t(!f->is_uniformed)*uintptr_t(filter_is_uniformed)
-                    + (uintptr_t(f->is_uniformed))); 
+            f->output_is_uniformed= (output_is_uniformed_t)filter_lookup_table_get_value(flookup, "output_is_uniformed");
+            f->output_is_uniformed = (output_is_uniformed_t) 
+                      (uintptr_t(!f->output_is_uniformed) * uintptr_t(filter_is_uniformed)
+                    + (uintptr_t(f->output_is_uniformed))); 
         }
 
         {
@@ -160,7 +164,6 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
             f = nullptr; 
         }
     }
-    
     return f;
 }
 
@@ -168,6 +171,8 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
 uint64_t filter_database_uri_hasher(const char * prfx,const char * filter_id,const char * state_id){
     return std::hash<std::string>{}(std::string(prfx)+filter_id+state_id);
 }
+
+
 filter_database_handler* filter_database_handler_lookup(filter* f,const char * sharedlib){
     struct stat st;
     auto res = (filter_database_handler*) 0;
@@ -196,11 +201,12 @@ filter_database_handler* filter_database_handler_lookup(filter* f,const char * s
                     res->setup =  (typeof(res->setup)) filter_lookup_table_get_value(lookup_tb,"setup");
                     res->set_output =  (typeof(res->set_output)) filter_lookup_table_get_value(lookup_tb,"set_output");
                     res->set_input =  (typeof(res->set_input)) filter_lookup_table_get_value(lookup_tb,"set_input");
-//                    res->set_output_size =  (typeof(res->set_output_size)) filter_lookup_table_get_value(lookup_tb,"set_output_size");
                     res->save =  (typeof(res->save)) filter_lookup_table_get_value(lookup_tb,"save");
                     res->sw_overwrite =  (typeof(res->sw_overwrite)) filter_lookup_table_get_value(lookup_tb,"sw_overwrite");
                     res->sw_without_rowid =  (typeof(res->sw_without_rowid)) filter_lookup_table_get_value(lookup_tb,"sw_without_rowid");
                     res->sw_uniformed =  (typeof(res->sw_uniformed)) filter_lookup_table_get_value(lookup_tb,"sw_uniformed");
+                    res->sw_key_is_uniformed =  (typeof(res->sw_key_is_uniformed)) filter_lookup_table_get_value(lookup_tb,"sw_key_is_uniformed");
+                    
                     free_lookup_t(lookup_tb);
                 }
                 return res;
@@ -263,6 +269,7 @@ struct filter_first_member{ void * o=0;uint64_t o_bytes=0; uint64_t o_block_byte
 void* filter_first_member_output(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o; }
 uint64_t filter_first_member_size(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_size; }
 uint64_t filter_first_member_output_bytes(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_bytes; }
+bool filter_first_member_output_is_uniformed(filter * f){ return true; }
 int _flow_push_input(flow * fhdl,void * data,uint32_t block_bytes,uint64_t nitems){
     
     fhdl->first_member = new filter_first_member{
@@ -276,6 +283,7 @@ int _flow_push_input(flow * fhdl,void * data,uint32_t block_bytes,uint64_t nitem
         f->output = filter_first_member_output;
         f->output_bytes = filter_first_member_output_bytes;
         f->output_size = filter_first_member_size;
+        f->output_is_uniformed = filter_first_member_output_is_uniformed;
         f->fm=fhdl->first_member;
     }
     fhdl->lookup_releaser.emplace_back(new flow_lookup_table{.filter=f});
@@ -351,7 +359,7 @@ int filter_database_save(filter * f){
         db->set_output(instance, out, f->output_bytes(f)/f->output_size(f),f->output_size(f));
         
         auto index = f->index(f);
-        db->set_index(instance, index/*,index + f->output_size(f)*/);
+        db->set_index(instance, index);
     
         
         return db->save(instance);
@@ -360,7 +368,9 @@ int filter_database_save(filter * f){
 }
 
 
-
+bool filter_input_is_uniformed(filter * f){
+    return f->m->hdl->filters[f->m->pos-1]->output_is_uniformed(f->m->hdl->filters[f->m->pos - 1]);
+}
 void* filter_input(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output(f->m->hdl->filters[f->m->pos-1]); }
 uint64_t filter_input_size(filter *f){ return f->m->hdl->filters[f->m->pos-1]->output_size(f->m->hdl->filters[f->m->pos-1]); }
 uint64_t filter_input_bytes(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output_bytes(f->m->hdl->filters[f->m->pos-1]); }
@@ -392,14 +402,15 @@ int filter_database_setup(filter * f) {
             if(itr->second) m->db->free(itr->second);
             itr->second=m->db->initialize(m->db);
             m->db->instance=itr->second;
-            m->db->sw_uniformed(m->db->instance,f->is_uniformed(f));
+            
+            m->db->sw_uniformed(m->db->instance,f->output_is_uniformed(f));
+            m->db->sw_key_is_uniformed(m->db->instance,f->input_is_uniformed(f));
+            
             filter_database_handler_set_option(m->db,m->option ? m->option : f->m->hdl->db_options);
             m->db->set_uri(m->db->instance, m->hdl->local_uri.data(), f->id_hr(f),f->state_id(f));
             m->db->last_option = m->option;
             res=m->db->setup(m->db->instance);
         }
-        
-        
     }
     return res;
 }
