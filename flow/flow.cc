@@ -7,6 +7,7 @@
 #include "libgen.h"
 #include "sys/stat.h"
 #include "kautil/sharedlib/sharedlib.h"
+
 #include "debug_new.h"
 
 
@@ -314,7 +315,11 @@ void filter_free(filter * f){
     if(f->m){
         auto db = f->m->db;
         if(db){
-            for(auto & e : db->instance_map) if(e.second) db->free(e.second); 
+            for(auto & e : db->instance_map){
+                if(e.second){
+                    db->free(e.second); 
+                }
+            } 
             delete db;
         }
         delete f->m;
@@ -398,8 +403,11 @@ int filter_database_setup(filter * f) {
         auto state_hash = m->db->uri_hasher(m->hdl->local_uri.data(), f->id_hr(f),f->state_id(f));
         auto [itr,insert] = m->db->instance_map.insert({state_hash, nullptr});
         m->db->instance=itr->second;
+        
         if(insert || f->database_close_always(f)){
-            if(itr->second) m->db->free(itr->second);
+            if(itr->second){
+                m->db->free(itr->second);
+            } 
             itr->second=m->db->initialize(m->db);
             m->db->instance=itr->second;
             

@@ -26,7 +26,7 @@ set(${module_name}_common_pref
     MODULE_NAME ${module_name}
     INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<INSTALL_INTERFACE:include> ${CMAKE_CURRENT_LIST_DIR} 
     SOURCES ${srcs}
-    LINK_LIBS  kautil::sharedlib::0.0.1::static kautil_debug_nvwa_0.0.1_static 
+    LINK_LIBS  kautil::sharedlib::0.0.1::static kautil_debug_nvwa_0.0.1_static
     EXPORT_NAME_PREFIX ${PROJECT_NAME}
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion
@@ -47,7 +47,7 @@ target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
 target_link_libraries(${__t} PRIVATE ${${module_name}_static})
 target_compile_definitions(${__t} PRIVATE ${${module_name}_static_tmain_ppcs})
 target_compile_definitions(${__t} PRIVATE SO_FILE="$<TARGET_FILE:kautil_flow_db_sqlite3_0.0.1_shared>")
-add_dependencies(${__t} kautil_flow_db_sqlite3_0.0.1_shared)
+#add_dependencies(${__t} kautil_flow_db_sqlite3_0.0.1_shared)
 
 set(__t ${${module_name}_static_tmain}_tmp)
 add_executable(${__t})
