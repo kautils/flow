@@ -8,8 +8,6 @@
 #include "sys/stat.h"
 #include "kautil/sharedlib/sharedlib.h"
 
-#include "debug_new.h"
-
 
 
 struct filter_database_handler;
@@ -40,7 +38,7 @@ struct filter_lookup_elem{
 #include <map> 
 struct filter_database_handler{
     filter_database_handler* (*alloc)(filter * ,const char *)=filter_database_handler_lookup;
-    void* (*initialize)(void * hdl)=0;
+    void* (*initialize)(/*void * hdl*/)=0;
     void (*free)(void * hdl)=0;
     int (*uri_hasher)(const char * prfx,const char * filter_id,const char * state_id)=0;
     int (*set_uri)(void * hdl,const char * prfx,const char * filter_id,const char * state_id)=0;
@@ -229,6 +227,7 @@ flow_lookup_table* _flow_push_with_lookup_table(flow * fhdl
                 ,.lookup_table = ltb
                 ,.filter=f
             });
+            
             if(f){
                 f->state_reset(f);
                 flow_push(fhdl,f);
@@ -404,11 +403,13 @@ int filter_database_setup(filter * f) {
         auto [itr,insert] = m->db->instance_map.insert({state_hash, nullptr});
         m->db->instance=itr->second;
         
+
+        
         if(insert || f->database_close_always(f)){
             if(itr->second){
                 m->db->free(itr->second);
             } 
-            itr->second=m->db->initialize(m->db);
+            itr->second=m->db->initialize(/*m->db*/);
             m->db->instance=itr->second;
             
             m->db->sw_uniformed(m->db->instance,f->output_is_uniformed(f));
@@ -512,9 +513,9 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
             flow_set_input(fhdl,arr.data(), sizeof(decltype(arr)::value_type),arr.size());
             flow_execute_all_state(fhdl);
             
-//            std::iota(arr.begin(),arr.end(),123);
-//            flow_set_input(fhdl,arr.data(), sizeof(decltype(arr)::value_type),arr.size());
-//            flow_execute_all_state(fhdl);
+            std::iota(arr.begin(),arr.end(),123);
+            flow_set_input(fhdl,arr.data(), sizeof(decltype(arr)::value_type),arr.size());
+            flow_execute_all_state(fhdl);
             
         }
         flow_free(fhdl);

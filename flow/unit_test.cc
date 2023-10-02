@@ -10,7 +10,10 @@ int main(){
 
 int tmain_kautil_flow_static_tmp(const char *,const char *);
 int main(){
-    return tmain_kautil_flow_static_tmp(SO_FILE_DB,SO_FILE_FILTER);
+    
+//    while(true)
+//    for(auto i = 0; i < 1000; ++i)
+    auto res =  tmain_kautil_flow_static_tmp(SO_FILE_DB,SO_FILE_FILTER);
 }
 
 #endif
