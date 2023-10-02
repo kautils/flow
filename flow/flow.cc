@@ -7,6 +7,7 @@
 #include "libgen.h"
 #include "sys/stat.h"
 #include "kautil/sharedlib/sharedlib.h"
+#include "debug_new.h"
 
 
 
@@ -54,9 +55,7 @@ struct filter_database_handler{
     void * instance=0;
     void * dl=0;
     int last_option=-1;
-    
     std::map<uint64_t,void*> instance_map;
-    
 };
 
 
@@ -270,8 +269,11 @@ void* filter_first_member_output(filter * f){ return reinterpret_cast<filter_fir
 uint64_t filter_first_member_size(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_size; }
 uint64_t filter_first_member_output_bytes(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_bytes; }
 bool filter_first_member_output_is_uniformed(filter * f){ return true; }
+
+
 int _flow_push_input(flow * fhdl,void * data,uint32_t block_bytes,uint64_t nitems){
     
+    if(fhdl->first_member)delete fhdl->first_member;
     fhdl->first_member = new filter_first_member{
         .o=data
         ,.o_bytes=block_bytes*nitems
@@ -312,9 +314,8 @@ void filter_free(filter * f){
     if(f->m){
         auto db = f->m->db;
         if(db){
-            for(auto & e : db->instance_map){
-                if(e.second) db->free(e.second); 
-            } 
+            for(auto & e : db->instance_map) if(e.second) db->free(e.second); 
+            delete db;
         }
         delete f->m;
     }
@@ -331,7 +332,6 @@ void flow_free(flow * fhdl){
     }
     for(auto & dl_elem : fhdl->dls) if(dl_elem.second)kautil_dlclose(dl_elem.second);
     for(auto & e : fhdl->lookup_releaser) delete e; 
-    
     
     delete fhdl->first_member;
     delete fhdl; 
