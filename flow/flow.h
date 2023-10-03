@@ -34,15 +34,16 @@ struct filter{
 
 
 struct filter_lookup_table{};
-void * filter_lookup_table_get_value(filter_lookup_table * flookup_table,const char * key);
 flow* flow_initialize();
 void flow_free(flow * fhdl);
-int flow_input(flow * fhdl,void * data,int32_t block_size);
 int flow_push(flow * fhdl,filter* f);
-filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * );
 int flow_push_with_lookup_table(flow * fhdl,filter_lookup_table * (*filter_lookup_table_initialize)(),void (*filter_lookup_table_free)(filter_lookup_table * f));
+void flow_set_database(flow * hdl,const char * path_to_so,int op);
+int flow_execute_all_state(flow * fhdl);
 int flow_execute(flow * fhdl);
 void flow_set_local_uri(flow * hdl,const char * uri);
+
+
 
 
 

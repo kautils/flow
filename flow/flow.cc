@@ -20,7 +20,7 @@ struct filter_internal{
 static filter * filter_factory(){ return new filter{.m=new filter_internal}; }
 int flow_push_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems);
 filter_database_handler* filter_database_handler_lookup(filter * ,const char *);
-//filter_database_handler* filter_database_handler_lookup_with_filter(filter * f);
+void * filter_lookup_table_get_value(filter_lookup_table * flookup_table,const char * key);
 bool filter_input_is_uniformed(filter * f);
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
@@ -38,7 +38,7 @@ struct filter_lookup_elem{
 #include <map> 
 struct filter_database_handler{
     filter_database_handler* (*alloc)(filter * ,const char *)=filter_database_handler_lookup;
-    void* (*initialize)(/*void * hdl*/)=0;
+    void* (*initialize)()=0;
     void (*free)(void * hdl)=0;
     int (*uri_hasher)(const char * prfx,const char * filter_id,const char * state_id)=0;
     int (*set_uri)(void * hdl,const char * prfx,const char * filter_id,const char * state_id)=0;
@@ -484,15 +484,8 @@ int flow_execute_all_state(flow * fhdl){
 #include <numeric>
 
 
-struct ig{
-    void * data=0;
-    uint64_t size=0;
-};
-
 
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
-    
-    // miss : in database, io is treated as the same length  
     
     {
         remove("R:\\flow\\build\\android\\filter.arithmetic.subtract\\KautilFilterArithmeticSubtract.0.0.1\\4724af5.sqlite");
@@ -501,8 +494,6 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
         flow_set_local_uri(fhdl,"./");
         flow_set_database(fhdl,database_so,FILTER_DATABASE_OPTION_OVERWRITE | FILTER_DATABASE_OPTION_WITHOUT_ROWID);
         {
-            // it is loss to open database multiple times
-            
             auto input_len = 10; 
             std::vector<double> arr(10);
             
