@@ -5,7 +5,6 @@
 
 #define FILTER_DATABASE_OPTION_OVERWRITE 1 // ignore / overwrite
 #define FILTER_DATABASE_OPTION_WITHOUT_ROWID 2 // not use rowid, if database dose not support rowid, then shoudl be ignored (e.g : in case of using filesystem directlly).
-#define FILTER_DATABASE_TYPE_SQLITE3 1
 
 
 struct flow;
@@ -42,10 +41,6 @@ void flow_set_database(flow * hdl,const char * path_to_so,int op);
 int flow_execute_all_state(flow * fhdl);
 int flow_execute(flow * fhdl);
 void flow_set_local_uri(flow * hdl,const char * uri);
-
-
-
-
 
 
 #endif
