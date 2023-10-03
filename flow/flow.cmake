@@ -40,7 +40,7 @@ CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE static ${${module_name}_comm
 CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE shared ${${module_name}_common_pref} )
 
 
-
+#
 #set(__t ${${module_name}_static_tmain})
 #add_executable(${__t})
 #target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
@@ -49,12 +49,12 @@ CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE shared ${${module_name}_comm
 #target_compile_definitions(${__t} PRIVATE SO_FILE="$<TARGET_FILE:kautil_flow_db_sqlite3_0.0.1_shared>")
 #add_dependencies(${__t} kautil_flow_db_sqlite3_0.0.1_shared)
 
-#set(__t ${${module_name}_static_tmain}_tmp)
-#add_executable(${__t})
-#target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
-#target_link_libraries(${__t} PRIVATE ${${module_name}_static})
-#target_compile_definitions(${__t} PRIVATE ${${module_name}_static_tmain_ppcs}_TMP)
-#target_compile_definitions(${__t} PRIVATE SO_FILE_DB="$<TARGET_FILE:kautil_flow_db_sqlite3_0.0.1_shared>")
-#target_compile_definitions(${__t} PRIVATE SO_FILE_FILTER="$<TARGET_FILE:kautil_filter_althmetic_subtract_0.0.1_shared>")
-#add_dependencies(${__t} kautil_flow_db_sqlite3_0.0.1_shared)
-#add_dependencies(${__t} kautil_filter_althmetic_subtract_0.0.1_shared)
+set(__t ${${module_name}_static_tmain}_tmp)
+add_executable(${__t})
+target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
+target_link_libraries(${__t} PRIVATE ${${module_name}_static})
+target_compile_definitions(${__t} PRIVATE ${${module_name}_static_tmain_ppcs}_TMP)
+target_compile_definitions(${__t} PRIVATE SO_FILE_DB="$<TARGET_FILE:kautil_flow_db_sqlite3_0.0.1_shared>")
+target_compile_definitions(${__t} PRIVATE SO_FILE_FILTER="$<TARGET_FILE:kautil_filter_example_0.0.1_shared>")
+add_dependencies(${__t} kautil_flow_db_sqlite3_0.0.1_shared)
+add_dependencies(${__t} kautil_filter_example_0.0.1_shared)

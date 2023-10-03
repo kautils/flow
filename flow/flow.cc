@@ -25,7 +25,8 @@ bool filter_input_is_uniformed(filter * f);
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
 uint64_t filter_input_size(filter *f);
-int filter_database_save(filter * f);
+
+int flow_database_save(filter * f);
 void filter_free(filter * f);
 
 struct filter_lookup_elem{
@@ -105,8 +106,8 @@ void * flow_dlopen(flow * m,const char * path_to_so,int op){
 }
 
 
-bool filter_database_close_always(filter * f){ return false; }
-bool filter_is_uniformed(filter * f){ return true; }
+bool filter_database_close_always(void * f){ return false; }
+bool filter_is_uniformed(void * f){ return true; }
 flow* flow_initialize(){ return new flow{}; }
 bool flow_check_filter_validity(filter * f){
     auto arr = reinterpret_cast<uint64_t*>(f);
@@ -124,34 +125,35 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
     auto f =filter_factory();{
         f->m->hdl=fhdl;
         f->main= (decltype(f->main))filter_lookup_table_get_value(flookup,"fmain");
-        f->output= (output_t)filter_lookup_table_get_value(flookup,"output");
-        f->output_bytes= (output_bytes_t)filter_lookup_table_get_value(flookup,"output_bytes");
-        f->output_size= (output_size_t)filter_lookup_table_get_value(flookup,"output_size");
-        f->index= (index_t)filter_lookup_table_get_value(flookup,"index");
-        f->index = (index_t) 
+        f->output=(decltype(f->output))filter_lookup_table_get_value(flookup,"output");
+        f->output_bytes= (decltype(f->output_bytes))filter_lookup_table_get_value(flookup,"output_bytes");
+        f->output_size= (decltype(f->output_size))filter_lookup_table_get_value(flookup,"output_size");
+        f->set_input=(decltype(f->set_input))filter_lookup_table_get_value(flookup,"set_input");
+        f->index= (decltype(f->index))filter_lookup_table_get_value(flookup,"index");
+        f->index = (decltype(f->index)) 
                 (!uintptr_t(f->index)*uintptr_t(filter_index) 
                  +uintptr_t(f->index));
-        f->input = filter_input;
-        f->input_bytes = filter_input_bytes;
-        f->input_size = filter_input_size;
-        f->input_is_uniformed = filter_input_is_uniformed; 
+//        f->input = filter_input;
+//        f->input_bytes = filter_input_bytes;
+//        f->input_size = filter_input_size;
+//        f->input_is_uniformed = filter_input_is_uniformed; 
         
-        f->id= (filter_id_t)filter_lookup_table_get_value(flookup,"id");
-        f->id_hr= (filter_id_t)filter_lookup_table_get_value(flookup,"id_hr");
-        f->state_next= (state_next_t)filter_lookup_table_get_value(flookup,"state_next");
-        f->state_reset= (state_reset_t)filter_lookup_table_get_value(flookup,"state_reset");
-        f->state_id= (state_id_t)filter_lookup_table_get_value(flookup,"state_id");
-        f->save=filter_database_save;
+        f->id= (decltype(f->id))filter_lookup_table_get_value(flookup,"id");
+        f->id_hr= (decltype(f->id_hr))filter_lookup_table_get_value(flookup,"id_hr");
+        f->state_next= (decltype(f->state_next))filter_lookup_table_get_value(flookup,"state_next");
+        f->state_reset= (decltype(f->state_reset))filter_lookup_table_get_value(flookup,"state_reset");
+        f->state_id= (decltype(f->state_id))filter_lookup_table_get_value(flookup,"state_id");
+//        f->save=flow_database_save;
         {
-            f->output_is_uniformed= (output_is_uniformed_t)filter_lookup_table_get_value(flookup, "output_is_uniformed");
-            f->output_is_uniformed = (output_is_uniformed_t) 
+            f->output_is_uniformed= (decltype(f->output_is_uniformed))filter_lookup_table_get_value(flookup, "output_is_uniformed");
+            f->output_is_uniformed = (decltype(f->output_is_uniformed)) 
                       (uintptr_t(!f->output_is_uniformed) * uintptr_t(filter_is_uniformed)
                     + (uintptr_t(f->output_is_uniformed))); 
         }
 
         {
-            f->database_close_always=(database_close_always_t)filter_lookup_table_get_value(flookup, "database_close_always");
-            f->database_close_always=(database_close_always_t) 
+            f->database_close_always=(decltype(f->database_close_always))filter_lookup_table_get_value(flookup, "database_close_always");
+            f->database_close_always=(decltype(f->database_close_always)) 
                     (!uint64_t(f->database_close_always)*uint64_t(filter_database_close_always)
                      +uint64_t(f->database_close_always));
         }
@@ -229,7 +231,7 @@ flow_lookup_table* _flow_push_with_lookup_table(flow * fhdl
             });
             
             if(f){
-                f->state_reset(f);
+                f->state_reset(f->fm);
                 flow_push(fhdl,f);
                 return fhdl->lookup_releaser.back();
             }
@@ -248,8 +250,10 @@ int flow_push_with_lookup_table(flow * fhdl
 int flow_execute(flow * fhdl){
     for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
         auto f = fhdl->filters[i];
-        f->main(f);
-        f->save(f);
+        f->set_input(f->fm,filter_input(f),filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
+        f->main(f->fm);
+        flow_database_save(f);
+        //f->save(f);
         
     }
     return 0;
@@ -264,11 +268,13 @@ int flow_push(flow * fhdl,filter* f){
     return 0;
 }
 
+
+
 struct filter_first_member{ void * o=0;uint64_t o_bytes=0; uint64_t o_block_bytes=0; uint64_t o_size=0; }__attribute__((aligned(8)));
-void* filter_first_member_output(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o; }
-uint64_t filter_first_member_size(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_size; }
-uint64_t filter_first_member_output_bytes(filter * f){ return reinterpret_cast<filter_first_member*>(f->fm)->o_bytes; }
-bool filter_first_member_output_is_uniformed(filter * f){ return true; }
+void* filter_first_member_output(void * m){ return reinterpret_cast<filter_first_member*>(m)->o; }
+uint64_t filter_first_member_size(void * f){ return reinterpret_cast<filter_first_member*>(f)->o_size; }
+uint64_t filter_first_member_output_bytes(void * f){ return reinterpret_cast<filter_first_member*>(f)->o_bytes; }
+bool filter_first_member_output_is_uniformed(void * f){ return true; }
 
 
 int _flow_push_input(flow * fhdl,void * data,uint32_t block_bytes,uint64_t nitems){
@@ -351,18 +357,20 @@ int filter_database_handler_set_option(filter_database_handler * hdl,int op){
     return 0;    
 }
 
-int filter_database_save(filter * f){
+int flow_database_save(filter * f){
     auto db =f->m->db; 
-    if(0== !db + !f->save){
+    if(db ){
         auto instance = db->instance;
         
-        auto in = (const char *) f->input(f);
-        db->set_input(instance, in, f->input_bytes(f)/f->input_size(f),f->input_size(f));
+//        auto in = (const char *) f->input(f);
+        auto in = (const char *) filter_input(f);
+//        db->set_input(instance, in, f->input_bytes(f)/f->input_size(f),f->input_size(f));
+        db->set_input(instance, in, filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
         
-        auto out = (const char *) f->output(f);
-        db->set_output(instance, out, f->output_bytes(f)/f->output_size(f),f->output_size(f));
+        auto out = (const char *) f->output(f->fm);
+        db->set_output(instance, out, f->output_bytes(f->fm)/f->output_size(f->fm),f->output_size(f->fm));
         
-        auto index = f->index(f);
+        auto index = f->index(f->fm);
         db->set_index(instance, index);
     
         
@@ -373,11 +381,11 @@ int filter_database_save(filter * f){
 
 
 bool filter_input_is_uniformed(filter * f){
-    return f->m->hdl->filters[f->m->pos-1]->output_is_uniformed(f->m->hdl->filters[f->m->pos - 1]);
+    return f->m->hdl->filters[f->m->pos-1]->output_is_uniformed(f->m->hdl->filters[f->m->pos - 1]->fm);
 }
-void* filter_input(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output(f->m->hdl->filters[f->m->pos-1]); }
-uint64_t filter_input_size(filter *f){ return f->m->hdl->filters[f->m->pos-1]->output_size(f->m->hdl->filters[f->m->pos-1]); }
-uint64_t filter_input_bytes(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output_bytes(f->m->hdl->filters[f->m->pos-1]); }
+void* filter_input(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output(f->m->hdl->filters[f->m->pos-1]->fm); }
+uint64_t filter_input_size(filter *f){ return f->m->hdl->filters[f->m->pos-1]->output_size(f->m->hdl->filters[f->m->pos-1]->fm); }
+uint64_t filter_input_bytes(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output_bytes(f->m->hdl->filters[f->m->pos-1]->fm); }
 
 
 
@@ -399,24 +407,25 @@ int filter_database_setup(filter * f) {
     if(!m->db) m->db = filter_database_handler_lookup(f, library);
     auto res  =0;
     {
-        auto state_hash = m->db->uri_hasher(m->hdl->local_uri.data(), f->id_hr(f),f->state_id(f));
+        auto state_hash = m->db->uri_hasher(m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
         auto [itr,insert] = m->db->instance_map.insert({state_hash, nullptr});
         m->db->instance=itr->second;
         
 
         
-        if(insert || f->database_close_always(f)){
+        if(insert || f->database_close_always(f->fm)){
             if(itr->second){
                 m->db->free(itr->second);
             } 
             itr->second=m->db->initialize(/*m->db*/);
             m->db->instance=itr->second;
             
-            m->db->sw_uniformed(m->db->instance,f->output_is_uniformed(f));
-            m->db->sw_key_is_uniformed(m->db->instance,f->input_is_uniformed(f));
+            m->db->sw_uniformed(m->db->instance,f->output_is_uniformed(f->fm));
+//            m->db->sw_key_is_uniformed(m->db->instance,f->input_is_uniformed(f));
+            m->db->sw_key_is_uniformed(m->db->instance,filter_input_is_uniformed(f));
             
             filter_database_handler_set_option(m->db,m->option ? m->option : f->m->hdl->db_options);
-            m->db->set_uri(m->db->instance, m->hdl->local_uri.data(), f->id_hr(f),f->state_id(f));
+            m->db->set_uri(m->db->instance, m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
             m->db->last_option = m->option;
             res=m->db->setup(m->db->instance);
         }
@@ -468,9 +477,9 @@ int flow_execute_all_state(flow * fhdl){
         
         for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
             auto f = fhdl->filters[i];
-            if(!f->state_next(f)){
+            if(!f->state_next(f->fm)){
                 state+=1;
-                f->state_reset(f);
+                f->state_reset(f->fm);
                 continue;
             }
             break;

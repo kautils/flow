@@ -10,23 +10,20 @@
 struct flow;
 struct filter_internal;
 struct filter{
-    int (*main)(filter * m)=0;
-    uint64_t * (*index)(filter *)=0;
-    void * (*output)(filter *)=0;
-    uint64_t(*output_bytes)(filter *)=0;
-    uint64_t(*output_size)(filter *)=0;
-    bool (*output_is_uniformed)(filter * f)=0;
-    void * (*input)(filter *)=0; 
-    uint64_t(*input_size)(filter *)=0;
-    uint64_t(*input_bytes)(filter *)=0; 
-    bool(*input_is_uniformed)(filter *)=0; 
-    const char *(*id)(filter *)=0;
-    const char *(*id_hr)(filter *)=0;
-    int (*save)(filter *)=0;
-    void (*state_reset)(filter * f)=0;
-    bool (*state_next)(filter * f)=0;
-    const char * (*state_id)(filter * f)=0;
-    bool (*database_close_always)(filter * f)=0; ///@note specify database lifecycle at filter level. use when want to close dbcon each time of flow_execute.
+    int (*main)(void * m)=0;
+    uint64_t * (*index)(void *)=0;
+    void * (*output)(void *)=0;
+    uint64_t(*output_bytes)(void *)=0;
+    uint64_t(*output_size)(void *)=0;
+    uint64_t(*set_input)(void *,void * data,uint64_t block_size,uint64_t nitems)=0;
+    bool (*output_is_uniformed)(void * f)=0;
+//    bool(*input_is_uniformed)(void *)=0; 
+    const char *(*id)(void *)=0;
+    const char *(*id_hr)(void *)=0;
+    void (*state_reset)(void * f)=0;
+    bool (*state_next)(void * f)=0;
+    const char * (*state_id)(void * f)=0;
+    bool (*database_close_always)(void * f)=0; ///@note specify database lifecycle at filter level. use when want to close dbcon each time of flow_execute.
     void* fm=0;
     filter_internal * m=0;
 } __attribute__((aligned(sizeof(uintptr_t))));
@@ -34,6 +31,7 @@ struct filter{
 
 struct filter_lookup_table{};
 flow* flow_initialize();
+int flow_database_save(filter * fhdl);
 void flow_free(flow * fhdl);
 int flow_push(flow * fhdl,filter* f);
 int flow_push_with_lookup_table(flow * fhdl,filter_lookup_table * (*filter_lookup_table_initialize)(),void (*filter_lookup_table_free)(filter_lookup_table * f));
