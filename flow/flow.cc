@@ -483,8 +483,6 @@ int flow_cache_save(filter * f){
     double from = 0;
     double to = 9;
     cache_primitive_type_merge(cache,&from,&to);
-    exit(0);
-    
     if(cache_primitive_type_exists(cache,&from,&to)){
         printf("exists\n"); fflush(stdout);
     }else{
@@ -493,39 +491,7 @@ int flow_cache_save(filter * f){
     auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
     cache_primitive_type_gap_context_free(cache,ctx);
     cache_primitive_type_free(cache);
-    
-    // merge
-    
-    
-//    auto arr = reinterpret_cast<double*>(filter_input(f));
-//    auto dir = (char*) f->id_hr(f->fm);
-//    auto fn = (char*) f->state_id(f->fm);
-//    if(mkdir_recurse(dir)){
-//        fprintf(stderr,"fail to create %s",dir);
-//        abort();
-//    }
-//    auto path = std::string{dir} + "/" + fn + ".cache";
-//    auto cache_path = path.data();
-//    remove(cache_path);
-//    
-//    auto fd = int(-1);
-//    {
-//        struct stat st;
-//        if(stat(cache_path,&st)){
-//            fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
-//        }else{
-//            fd = open(cache_path,O_RDWR|O_BINARY);
-//        }
-//    }
-//    
-//    
-//    
-//    using file_16_struct_type = file_syscall_double_pref<double>; 
-//    auto pref = file_16_struct_type{.fd=fd};
-//    auto a = kautil::cache{&pref};
-//    auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
     flow_cache_dump_file(get_instance(cache)->fd);
-//    return res;
     return 0;
 }
 
