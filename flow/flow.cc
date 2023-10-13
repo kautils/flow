@@ -320,7 +320,10 @@ struct file_syscall_double_pref{
         return size==::read(fd,*data,size);
     }
     
-    bool extend(offset_type extend_size){ fstat(fd,&st); return !ftruncate(fd,st.st_size+extend_size);   }
+    int extend(offset_type extend_size){ 
+        fstat(fd,&st); 
+        return ftruncate(fd,st.st_size+extend_size);
+    }
     int shift(offset_type dst,offset_type src,offset_type size){
         if(buffer_size < size){
             if(buffer)free(buffer);
@@ -398,13 +401,13 @@ int cache_primitive_type_setup(void * hdl,cache_primitive_type_id const& type){
         struct stat st;
         auto cache_path = m->path.data();
         if(stat(cache_path,&st)){
-            m->fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+            m->fd = ::open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
         }else{
-            m->fd = open(cache_path,O_RDWR|O_BINARY);
+            m->fd = ::open(cache_path,O_RDWR|O_BINARY);
         }
     }
     m->type_id = type;
-    auto pref =new file_syscall_double_pref<double>{}; 
+    auto pref =new file_syscall_double_pref<double>{.fd=m->fd}; 
     m->pref = pref;
     m->obj = new kautil::cache{pref};
     
@@ -425,10 +428,13 @@ typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context* t
     return reinterpret_cast<typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context*>(cache_obj);
 }
 
-bool cache_primitive_type_merge(void * hdl,void * begin,void * end){
+bool cache_primitive_type_merge(void * hdl,void * begin,void * end){ 
     auto m = get_instance(hdl);
     switch (m->type_id) {
-        case kDouble:return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+        case kDouble:{
+            int jjj = 0;
+            return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+        }
     };
     return false;
 }
@@ -436,7 +442,7 @@ bool cache_primitive_type_merge(void * hdl,void * begin,void * end){
 bool cache_primitive_type_exists(void * hdl,void * begin,void * end){
     auto m = get_instance(hdl);
     switch (m->type_id) {
-        case kDouble:return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+        case kDouble: return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
     };
     return false;
 }
@@ -476,9 +482,15 @@ int flow_cache_save(filter * f){
     
     double from = 0;
     double to = 9;
-    cache_primitive_type_exists(cache,&from,&to);
-    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
     cache_primitive_type_merge(cache,&from,&to);
+    exit(0);
+    
+    if(cache_primitive_type_exists(cache,&from,&to)){
+        printf("exists\n"); fflush(stdout);
+    }else{
+        printf("wrong\n"); fflush(stdout);
+    }
+    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
     cache_primitive_type_gap_context_free(cache,ctx);
     cache_primitive_type_free(cache);
     
@@ -512,7 +524,7 @@ int flow_cache_save(filter * f){
 //    auto pref = file_16_struct_type{.fd=fd};
 //    auto a = kautil::cache{&pref};
 //    auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
-//    flow_cache_dump_file(fd);
+    flow_cache_dump_file(get_instance(cache)->fd);
 //    return res;
     return 0;
 }
