@@ -10,6 +10,44 @@
 
 
 
+#include "kautil/cache/cache.hpp"
+#include "unistd.h"
+#include "fcntl.h"
+
+
+
+int mkdir_recurst(char * p){
+    
+    auto c = p;
+    struct stat st;
+
+    if(0==stat(p,&st)){
+        return !S_ISDIR(st.st_mode);
+    } 
+    auto b = true;
+    for(;b;++c){
+        if(*c == '\\' || *c=='/'){
+            ++c;
+            auto evacu = *c;
+            *c = 0;
+            if(stat(p,&st)){
+                if(mkdir(p)) b = false;
+            }
+            *c = evacu;
+        }
+        if(0==!b+!*c) continue;
+        if(stat(p,&st)){
+            if(mkdir(p)) b = false;
+        }
+        break;
+    }
+    return !b;
+}
+
+
+
+
+
 struct filter_database_handler;
 struct filter_internal{
     filter_database_handler * db=0;
@@ -22,6 +60,8 @@ int flow_push_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems)
 filter_database_handler* filter_database_handler_lookup(filter * ,const char *);
 void * filter_lookup_table_get_value(filter_lookup_table * flookup_table,const char * key);
 bool filter_input_is_uniformed(filter * f);
+void * filter_input_high(filter * f);
+void * filter_input_low(filter * f);
 void* filter_input(filter * f);
 uint64_t filter_input_bytes(filter * f);
 uint64_t filter_input_size(filter *f);
@@ -128,6 +168,9 @@ filter * flow_lookup_filter_functions(flow * fhdl,filter_lookup_table * flookup)
         f->output=(decltype(f->output))filter_lookup_table_get_value(flookup,"output");
         f->output_bytes= (decltype(f->output_bytes))filter_lookup_table_get_value(flookup,"output_bytes");
         f->output_size= (decltype(f->output_size))filter_lookup_table_get_value(flookup,"output_size");
+        f->output_high= (decltype(f->output_high))filter_lookup_table_get_value(flookup,"output_high");
+        f->output_low= (decltype(f->output_low))filter_lookup_table_get_value(flookup,"output_low");
+        
         f->set_input=(decltype(f->set_input))filter_lookup_table_get_value(flookup,"set_input");
         f->index= (decltype(f->index))filter_lookup_table_get_value(flookup,"index");
         f->index = (decltype(f->index)) 
@@ -246,15 +289,147 @@ int flow_push_with_lookup_table(flow * fhdl
     return _flow_push_with_lookup_table(fhdl,filter_lookup_table_initialize,filter_lookup_table_free) ? 0:1;
 }
 
+template<typename element_type>
+struct file_syscall_double_pref{
+    using value_type = element_type;
+    using offset_type = long;
+    
+    int fd=-1;
+    char * buffer = 0;
+    offset_type buffer_size = 0;
+    struct stat st;
+    
+    
+    ~file_syscall_double_pref(){ free(buffer); }
+    offset_type block_size(){ return sizeof(value_type)*2; }
+    offset_type size(){ fstat(fd,&st);return static_cast<offset_type>(st.st_size); }
+    
+    void read_value(offset_type const& offset, value_type ** value){
+        lseek(fd,offset,SEEK_SET);
+        ::read(fd,*value,sizeof(value_type));
+    }
+    
+    bool write(offset_type const& offset, void ** data, offset_type size){
+        lseek(fd,offset,SEEK_SET);
+        return size==::write(fd,*data,size);
+    }
+    
+    // api may make a confusion but correct. this is because to avoid copy of value(object such as bigint) for future.
+    bool read(offset_type const& from, void ** data, offset_type size){
+        lseek(fd,from,SEEK_SET);
+        return size==::read(fd,*data,size);
+    }
+    
+    bool extend(offset_type extend_size){ fstat(fd,&st); return !ftruncate(fd,st.st_size+extend_size);   }
+    int shift(offset_type dst,offset_type src,offset_type size){
+        if(buffer_size < size){
+            if(buffer)free(buffer);
+            buffer = (char*) malloc(buffer_size = size);
+        }
+        lseek(fd,src,SEEK_SET);
+        auto read_size = ::read(fd,buffer,size);
+        lseek(fd,dst,SEEK_SET);
+        ::write(fd,buffer,read_size);
+        return 0;
+    }
+    
+    int flush_buffer(){ return 0; }
+};
+
+
+
 
 int flow_execute(flow * fhdl){
     for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
         auto f = fhdl->filters[i];
+        
         f->set_input(f->fm,filter_input(f),filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
         f->main(f->fm);
-        flow_database_save(f);
-        //f->save(f);
         
+        if(0==flow_database_save(f)){
+
+
+            {
+                // get low and high of input.
+                // there is no guarantee that input values are always sorted. 
+
+                printf("%lf %lf\n"
+                       ,*(double*)filter_input_high(f)
+                       ,*(double*)filter_input_low(f)
+                       );
+                fflush(stdout);
+                
+            }
+            
+            
+            
+            
+            auto arr = reinterpret_cast<double*>(filter_input(f));
+            
+            auto dir = (char*) f->id_hr(f->fm);
+            auto fn = (char*) f->state_id(f->fm);
+            if(mkdir_recurst(dir)){
+                fprintf(stderr,"fail to create %s",dir);
+                abort();
+            }
+            auto path = std::string{dir} + "/" + fn + ".cache";
+            auto cache_path = path.data();
+            remove(cache_path);
+            
+            auto fd = int(-1);
+            {
+                struct stat st;
+                if(stat(cache_path,&st)){
+                    fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+                }else{
+                    fd = open(cache_path,O_RDWR|O_BINARY);
+                }
+            }
+            
+            using file_16_struct_type = file_syscall_double_pref<double>; 
+            
+            auto shift = 100;
+            auto cnt = 0;
+            for(auto i = 0; i < 100 ; ++i){
+                auto beg = file_16_struct_type::value_type(cnt*10+shift);
+                auto end = beg+10;
+                
+                auto cur = tell(fd);
+                auto block_size = sizeof(file_16_struct_type::value_type);
+                write(fd,&beg,block_size);
+                lseek(fd,cur+block_size,SEEK_SET);
+                write(fd,&end,block_size);
+                lseek(fd,cur+(block_size*2),SEEK_SET);
+                cnt+=2;
+            }
+            lseek(fd,0,SEEK_SET);
+            // cache process
+            
+            auto pref = file_16_struct_type{.fd=fd};
+            auto a = kautil::cache{&pref};
+            file_16_struct_type::value_type input[2] = {500,900};
+            auto fw = a.merge(input);
+            
+            {
+                file_16_struct_type::value_type input[2] ={10,2000};
+                if(auto ctx = a.gap(input)){
+                    auto cur = ctx->begin;
+                    auto cnt = 0;
+                    for(;cur != ctx->end;++cur){
+                      printf("%d ,,,%lf\n",cnt++%2,*cur);
+                    }
+                    a.gap_context_free(ctx);
+                }else{
+                    printf("there is no gap\n");
+                }
+            }
+            
+            
+            // todo : specify diff
+            exit(0);
+
+            
+        }
     }
     return 0;
 }
@@ -270,7 +445,18 @@ int flow_push(flow * fhdl,filter* f){
 
 
 
-struct filter_first_member{ void * o=0;uint64_t o_bytes=0; uint64_t o_block_bytes=0; uint64_t o_size=0; }__attribute__((aligned(8)));
+struct filter_first_member{ 
+    void * o=0;
+    uint64_t o_bytes=0;
+    uint64_t o_block_bytes=0;
+    uint64_t o_size=0;
+    void * high = 0;
+    void * low = 0;
+}__attribute__((aligned(8)));
+
+
+void* filter_first_member_high(void * m){ return reinterpret_cast<filter_first_member*>(m)->high; }
+void* filter_first_member_low(void * m){ return reinterpret_cast<filter_first_member*>(m)->low; }
 void* filter_first_member_output(void * m){ return reinterpret_cast<filter_first_member*>(m)->o; }
 uint64_t filter_first_member_size(void * f){ return reinterpret_cast<filter_first_member*>(f)->o_size; }
 uint64_t filter_first_member_output_bytes(void * f){ return reinterpret_cast<filter_first_member*>(f)->o_bytes; }
@@ -290,6 +476,9 @@ int _flow_push_input(flow * fhdl,void * data,uint32_t block_bytes,uint64_t nitem
     auto f = filter_factory();{
         f->output = filter_first_member_output;
         f->output_bytes = filter_first_member_output_bytes;
+        f->output_high = filter_first_member_high;
+        f->output_low = filter_first_member_low;
+        
         f->output_size = filter_first_member_size;
         f->output_is_uniformed = filter_first_member_output_is_uniformed;
         f->fm=fhdl->first_member;
@@ -380,9 +569,10 @@ int flow_database_save(filter * f){
 }
 
 
-bool filter_input_is_uniformed(filter * f){
-    return f->m->hdl->filters[f->m->pos-1]->output_is_uniformed(f->m->hdl->filters[f->m->pos - 1]->fm);
-}
+
+void * filter_input_high(filter * f){ return f->m->hdl->filters[f->m->pos-1]->output_high(f->m->hdl->filters[f->m->pos - 1]->fm); }
+void * filter_input_low(filter * f){ return f->m->hdl->filters[f->m->pos-1]->output_low(f->m->hdl->filters[f->m->pos - 1]->fm); }
+bool filter_input_is_uniformed(filter * f){ return f->m->hdl->filters[f->m->pos-1]->output_is_uniformed(f->m->hdl->filters[f->m->pos - 1]->fm); }
 void* filter_input(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output(f->m->hdl->filters[f->m->pos-1]->fm); }
 uint64_t filter_input_size(filter *f){ return f->m->hdl->filters[f->m->pos-1]->output_size(f->m->hdl->filters[f->m->pos-1]->fm); }
 uint64_t filter_input_bytes(filter * f) { return f->m->hdl->filters[f->m->pos-1]->output_bytes(f->m->hdl->filters[f->m->pos-1]->fm); }
@@ -444,8 +634,8 @@ int flow_push_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems)
 int flow_set_input(flow * fhdl,void * data,uint64_t block_size,uint64_t nitems){
     return _flow_set_input(fhdl,data,block_size,nitems);
 }
-
-
+int flow_set_input_high(flow * fhdl,void * value){ fhdl->first_member->high = value;return 0; }
+int flow_set_input_low(flow * fhdl,void * value){ fhdl->first_member->low = value;return 0; }
 
 int flow_push_with_library(flow * fhdl,const char * so_filter){
     if(auto dl = flow_dlopen(fhdl,so_filter,rtld_lazy|rtld_nodelete)){
@@ -493,10 +683,11 @@ int flow_execute_all_state(flow * fhdl){
 #include <numeric>
 
 
-
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
     
+    
     {
+        
         remove("R:\\flow\\build\\android\\filter.arithmetic.subtract\\KautilFilterArithmeticSubtract.0.0.1\\4724af5.sqlite");
 
         auto fhdl = flow_initialize();
@@ -506,10 +697,16 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
             auto input_len = 10; 
             std::vector<double> arr(10);
             
+            
+            
             flow_push_with_library(fhdl,so_filter);
             flow_push_with_library(fhdl,so_filter);
             
             std::iota(arr.begin(),arr.end(),0);
+            
+            flow_set_input_high(fhdl,&arr.front());
+            flow_set_input_low(fhdl,&arr.back());
+            //flow_set_input(fhdl,arr.data(), sizeof(decltype(arr)::value_type),arr.size(),[](auto l, auto r){ return l <r; });
             flow_set_input(fhdl,arr.data(), sizeof(decltype(arr)::value_type),arr.size());
             flow_execute_all_state(fhdl);
             

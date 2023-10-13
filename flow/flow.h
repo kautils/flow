@@ -15,6 +15,9 @@ struct filter{
     void * (*output)(void *)=0;
     uint64_t(*output_bytes)(void *)=0;
     uint64_t(*output_size)(void *)=0;
+    void *(*output_high)(void *)=0;
+    void *(*output_low)(void *)=0;
+    
     uint64_t(*set_input)(void *,void * data,uint64_t block_size,uint64_t nitems)=0;
     bool (*output_is_uniformed)(void * f)=0;
 //    bool(*input_is_uniformed)(void *)=0; 
