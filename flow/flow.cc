@@ -16,7 +16,7 @@
 
 
 
-int mkdir_recurst(char * p){
+int mkdir_recurse(char * p){
     
     auto c = p;
     struct stat st;
@@ -338,6 +338,186 @@ struct file_syscall_double_pref{
 
 
 
+template<typename value_type,typename offset_type>
+void debug_out_file(FILE* outto,int fd,offset_type from,offset_type to){
+    struct stat st;
+    fstat(fd,&st);
+    auto cnt = 0;
+    lseek(fd,0,SEEK_SET);
+    auto start = from;
+    auto size = st.st_size;
+    value_type block[2];
+    for(auto i = 0; i< size; i+=(sizeof(value_type)*2)){
+        if(from <= i && i<= to ){
+            lseek(fd,i,SEEK_SET);
+            ::read(fd,&block, sizeof(value_type) * 2);
+            printf("[%ld] %lf %lf\n",i,block[0],block[1]);fflush(outto);
+        }
+    }
+}
+
+
+void flow_cache_dump_file(int fd){
+    debug_out_file<double,long>(stdout,fd,0,20);
+    exit(0);
+}
+
+enum cache_primitive_type_id{
+    kDouble=0
+};
+
+//#define m(ptr) reinterpret_cast<cache_primitive_type_handler*>(ptr) 
+struct cache_primitive_type_handler{
+    std::string path;
+    cache_primitive_type_id type_id;
+    void * obj=0;
+    void * pref=0;
+    int fd = -1;
+};
+
+
+cache_primitive_type_handler* get_instance(void * ptr){ return reinterpret_cast<cache_primitive_type_handler*>(ptr); }
+int cache_primitive_type_set_uri(void * hdl,const char * prfx,const char * filter_id,const char * state_id){
+    auto m = get_instance(hdl);
+    if(prfx) (m->path = prfx);
+    else m->path = "./filter_cache_primitive_type/";
+    
+    if(0== bool(filter_id) + bool(state_id)){
+        m->path = "/not_specified";
+    }else{
+        if(filter_id)m->path.append("/").append(filter_id);
+        if(state_id)m->path.append("/").append(state_id);
+    }
+    m->path.append(".cache");
+    return 0;
+}
+
+int cache_primitive_type_setup(void * hdl,cache_primitive_type_id const& type){
+    auto m = get_instance(hdl);
+    {
+        struct stat st;
+        auto cache_path = m->path.data();
+        if(stat(cache_path,&st)){
+            m->fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+        }else{
+            m->fd = open(cache_path,O_RDWR|O_BINARY);
+        }
+    }
+    m->type_id = type;
+    auto pref =new file_syscall_double_pref<double>{}; 
+    m->pref = pref;
+    m->obj = new kautil::cache{pref};
+    
+//    using file_16_struct_type = file_syscall_double_pref<double>; 
+//    auto pref = file_16_struct_type{.fd=m->fd};
+//    auto a = kautil::cache{&pref};
+    //auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
+    return 0;
+}
+
+template<typename primitive_type>
+kautil::cache<file_syscall_double_pref<primitive_type>>* to_cache_object(void * cache_obj){
+    return reinterpret_cast<kautil::cache<file_syscall_double_pref<primitive_type>>*>(cache_obj);
+}
+
+template<typename primitive_type>
+typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context* to_cache_gap_context_object(void * cache_obj){
+    return reinterpret_cast<typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context*>(cache_obj);
+}
+
+bool cache_primitive_type_merge(void * hdl,void * begin,void * end){
+    auto m = get_instance(hdl);
+    switch (m->type_id) {
+        case kDouble:return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+    };
+    return false;
+}
+
+bool cache_primitive_type_exists(void * hdl,void * begin,void * end){
+    auto m = get_instance(hdl);
+    switch (m->type_id) {
+        case kDouble:return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+    };
+    return false;
+}
+
+
+struct flow_cache_gap_context{};
+flow_cache_gap_context * cache_primitive_type_gap_context(void * hdl,void * begin,void * end){
+    auto m = get_instance(hdl);
+    switch (m->type_id) {
+        case kDouble:return (flow_cache_gap_context*) to_cache_object<double>(m->obj)->gap(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+    };
+    return nullptr;
+}
+
+void cache_primitive_type_gap_context_free(void * hdl,flow_cache_gap_context* ctx){
+    auto m = get_instance(hdl);
+    switch (m->type_id) {
+        case kDouble:to_cache_object<double>(m->obj)->gap_context_free(to_cache_gap_context_object<double>(ctx));
+    };
+    
+}
+
+
+void *cache_primitive_type_initialize(){ return new cache_primitive_type_handler; }
+void cache_primitive_type_free(void * hdl){ delete get_instance(hdl); }
+
+
+
+
+
+int flow_cache_save(filter * f){
+    
+    auto m = f->m;
+    auto cache = cache_primitive_type_initialize();
+    cache_primitive_type_set_uri(cache,m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
+    cache_primitive_type_setup(cache,cache_primitive_type_id::kDouble);
+    
+    double from = 0;
+    double to = 9;
+    cache_primitive_type_exists(cache,&from,&to);
+    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
+    cache_primitive_type_merge(cache,&from,&to);
+    cache_primitive_type_gap_context_free(cache,ctx);
+    cache_primitive_type_free(cache);
+    
+    // merge
+    
+    
+//    auto arr = reinterpret_cast<double*>(filter_input(f));
+//    auto dir = (char*) f->id_hr(f->fm);
+//    auto fn = (char*) f->state_id(f->fm);
+//    if(mkdir_recurse(dir)){
+//        fprintf(stderr,"fail to create %s",dir);
+//        abort();
+//    }
+//    auto path = std::string{dir} + "/" + fn + ".cache";
+//    auto cache_path = path.data();
+//    remove(cache_path);
+//    
+//    auto fd = int(-1);
+//    {
+//        struct stat st;
+//        if(stat(cache_path,&st)){
+//            fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+//        }else{
+//            fd = open(cache_path,O_RDWR|O_BINARY);
+//        }
+//    }
+//    
+//    
+//    
+//    using file_16_struct_type = file_syscall_double_pref<double>; 
+//    auto pref = file_16_struct_type{.fd=fd};
+//    auto a = kautil::cache{&pref};
+//    auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
+//    flow_cache_dump_file(fd);
+//    return res;
+    return 0;
+}
+
+
 
 int flow_execute(flow * fhdl){
     for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
@@ -347,84 +527,7 @@ int flow_execute(flow * fhdl){
         f->main(f->fm);
         
         if(0==flow_database_save(f)){
-
-
-            {
-                // get low and high of input.
-                // there is no guarantee that input values are always sorted. 
-
-                printf("%lf %lf\n"
-                       ,*(double*)filter_input_high(f)
-                       ,*(double*)filter_input_low(f)
-                       );
-                fflush(stdout);
-                
-            }
-            
-            
-            
-            
-            auto arr = reinterpret_cast<double*>(filter_input(f));
-            
-            auto dir = (char*) f->id_hr(f->fm);
-            auto fn = (char*) f->state_id(f->fm);
-            if(mkdir_recurst(dir)){
-                fprintf(stderr,"fail to create %s",dir);
-                abort();
-            }
-            auto path = std::string{dir} + "/" + fn + ".cache";
-            auto cache_path = path.data();
-            remove(cache_path);
-            
-            auto fd = int(-1);
-            {
-                struct stat st;
-                if(stat(cache_path,&st)){
-                    fd = open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
-                }else{
-                    fd = open(cache_path,O_RDWR|O_BINARY);
-                }
-            }
-            
-            using file_16_struct_type = file_syscall_double_pref<double>; 
-            
-            auto shift = 100;
-            auto cnt = 0;
-            for(auto i = 0; i < 100 ; ++i){
-                auto beg = file_16_struct_type::value_type(cnt*10+shift);
-                auto end = beg+10;
-                
-                auto cur = tell(fd);
-                auto block_size = sizeof(file_16_struct_type::value_type);
-                write(fd,&beg,block_size);
-                lseek(fd,cur+block_size,SEEK_SET);
-                write(fd,&end,block_size);
-                lseek(fd,cur+(block_size*2),SEEK_SET);
-                cnt+=2;
-            }
-            lseek(fd,0,SEEK_SET);
-            // cache process
-            
-            auto pref = file_16_struct_type{.fd=fd};
-            auto a = kautil::cache{&pref};
-            file_16_struct_type::value_type input[2] = {500,900};
-            auto fw = a.merge(input);
-            
-            {
-                file_16_struct_type::value_type input[2] ={10,2000};
-                if(auto ctx = a.gap(input)){
-                    auto cur = ctx->begin;
-                    auto cnt = 0;
-                    for(;cur != ctx->end;++cur){
-                      printf("%d ,,,%lf\n",cnt++%2,*cur);
-                    }
-                    a.gap_context_free(ctx);
-                }else{
-                    printf("there is no gap\n");
-                }
-            }
-            
-            
+            flow_cache_save(f);
             // todo : specify diff
             exit(0);
 
