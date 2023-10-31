@@ -10,7 +10,7 @@
 
 
 
-#include "kautil/cache/cache.hpp"
+//#include "kautil/cache/cache.hpp"
 #include "unistd.h"
 #include "fcntl.h"
 
@@ -395,105 +395,103 @@ int cache_primitive_type_set_uri(void * hdl,const char * prfx,const char * filte
     return 0;
 }
 
-int cache_primitive_type_setup(void * hdl,cache_primitive_type_id const& type){
-    auto m = get_instance(hdl);
-    {
-        struct stat st;
-        auto cache_path = m->path.data();
-        if(stat(cache_path,&st)){
-            m->fd = ::open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
-        }else{
-            m->fd = ::open(cache_path,O_RDWR|O_BINARY);
-        }
-    }
-    m->type_id = type;
-    auto pref =new file_syscall_double_pref<double>{.fd=m->fd}; 
-    m->pref = pref;
-    m->obj = new kautil::cache{pref};
-    
-//    using file_16_struct_type = file_syscall_double_pref<double>; 
-//    auto pref = file_16_struct_type{.fd=m->fd};
-//    auto a = kautil::cache{&pref};
-    //auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
-    return 0;
-}
+//int cache_primitive_type_setup(void * hdl,cache_primitive_type_id const& type){
+//    auto m = get_instance(hdl);
+//    {
+//        struct stat st;
+//        auto cache_path = m->path.data();
+//        if(stat(cache_path,&st)){
+//            m->fd = ::open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+//        }else{
+//            m->fd = ::open(cache_path,O_RDWR|O_BINARY);
+//        }
+//    }
+//    m->type_id = type;
+//    auto pref =new file_syscall_double_pref<double>{.fd=m->fd}; 
+//    m->pref = pref;
+//    m->obj = new kautil::cache{pref};
+//    
+////    using file_16_struct_type = file_syscall_double_pref<double>; 
+////    auto pref = file_16_struct_type{.fd=m->fd};
+////    auto a = kautil::cache{&pref};
+//    //auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
+//    return 0;
+//}
 
-template<typename primitive_type>
-kautil::cache<file_syscall_double_pref<primitive_type>>* to_cache_object(void * cache_obj){
-    return reinterpret_cast<kautil::cache<file_syscall_double_pref<primitive_type>>*>(cache_obj);
-}
+//template<typename primitive_type>
+//kautil::cache<file_syscall_double_pref<primitive_type>>* to_cache_object(void * cache_obj){
+//    return reinterpret_cast<kautil::cache<file_syscall_double_pref<primitive_type>>*>(cache_obj);
+//}
+//
+//template<typename primitive_type>
+//typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context* to_cache_gap_context_object(void * cache_obj){
+//    return reinterpret_cast<typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context*>(cache_obj);
+//}
+//
+//bool cache_primitive_type_merge(void * hdl,void * begin,void * end){ 
+//    auto m = get_instance(hdl);
+//    switch (m->type_id) {
+//        case kDouble:{
+//            return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+//        }
+//    };
+//    return false;
+//}
+//
+//bool cache_primitive_type_exists(void * hdl,void * begin,void * end){
+//    auto m = get_instance(hdl);
+//    switch (m->type_id) {
+//        case kDouble: return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+//    };
+//    return false;
+//}
 
-template<typename primitive_type>
-typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context* to_cache_gap_context_object(void * cache_obj){
-    return reinterpret_cast<typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context*>(cache_obj);
-}
-
-bool cache_primitive_type_merge(void * hdl,void * begin,void * end){ 
-    auto m = get_instance(hdl);
-    switch (m->type_id) {
-        case kDouble:{
-            int jjj = 0;
-            return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-        }
-    };
-    return false;
-}
-
-bool cache_primitive_type_exists(void * hdl,void * begin,void * end){
-    auto m = get_instance(hdl);
-    switch (m->type_id) {
-        case kDouble: return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-    };
-    return false;
-}
-
-
-struct flow_cache_gap_context{};
-flow_cache_gap_context * cache_primitive_type_gap_context(void * hdl,void * begin,void * end){
-    auto m = get_instance(hdl);
-    switch (m->type_id) {
-        case kDouble:return (flow_cache_gap_context*) to_cache_object<double>(m->obj)->gap(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-    };
-    return nullptr;
-}
-
-void cache_primitive_type_gap_context_free(void * hdl,flow_cache_gap_context* ctx){
-    auto m = get_instance(hdl);
-    switch (m->type_id) {
-        case kDouble:to_cache_object<double>(m->obj)->gap_context_free(to_cache_gap_context_object<double>(ctx));
-    };
-    
-}
-
-
-void *cache_primitive_type_initialize(){ return new cache_primitive_type_handler; }
-void cache_primitive_type_free(void * hdl){ delete get_instance(hdl); }
+//
+//struct flow_cache_gap_context{};
+//flow_cache_gap_context * cache_primitive_type_gap_context(void * hdl,void * begin,void * end){
+//    auto m = get_instance(hdl);
+//    switch (m->type_id) {
+//        case kDouble:return (flow_cache_gap_context*) to_cache_object<double>(m->obj)->gap(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
+//    };
+//    return nullptr;
+//}
+//
+//void cache_primitive_type_gap_context_free(void * hdl,flow_cache_gap_context* ctx){
+//    auto m = get_instance(hdl);
+//    switch (m->type_id) {
+//        case kDouble:to_cache_object<double>(m->obj)->gap_context_free(to_cache_gap_context_object<double>(ctx));
+//    };
+//    
+//}
+//void *cache_primitive_type_initialize(){ return new cache_primitive_type_handler; }
+//void cache_primitive_type_free(void * hdl){ delete get_instance(hdl); }
 
 
-
-
-
-int flow_cache_save(filter * f){
-    
-    auto m = f->m;
-    auto cache = cache_primitive_type_initialize();
-    cache_primitive_type_set_uri(cache,m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
-    cache_primitive_type_setup(cache,cache_primitive_type_id::kDouble);
-    
-    double from = 0;
-    double to = 9;
-    cache_primitive_type_merge(cache,&from,&to);
-    if(cache_primitive_type_exists(cache,&from,&to)){
-        printf("exists\n"); fflush(stdout);
-    }else{
-        printf("wrong\n"); fflush(stdout);
-    }
-    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
-    cache_primitive_type_gap_context_free(cache,ctx);
-    cache_primitive_type_free(cache);
-    flow_cache_dump_file(get_instance(cache)->fd);
-    return 0;
-}
+//int flow_cache_save(filter * f){
+//    
+//    auto m = f->m;
+//    auto cache = cache_primitive_type_initialize();
+//    cache_primitive_type_set_uri(cache,m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
+//    cache_primitive_type_setup(cache,cache_primitive_type_id::kDouble);
+//    
+//    double from = 0;
+//    double to = 9;
+//    cache_primitive_type_merge(cache,&from,&to);
+//    if(cache_primitive_type_exists(cache,&from,&to)){
+//        printf("exists\n"); fflush(stdout);
+//    }else{
+//        printf("wrong\n"); fflush(stdout);
+//    }
+//    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
+//    
+//    
+//    
+//    
+//    cache_primitive_type_gap_context_free(cache,ctx);
+//    cache_primitive_type_free(cache);
+//    flow_cache_dump_file(get_instance(cache)->fd);
+//    return 0;
+//}
 
 
 
@@ -505,7 +503,7 @@ int flow_execute(flow * fhdl){
         f->main(f->fm);
         
         if(0==flow_database_save(f)){
-            flow_cache_save(f);
+//            flow_cache_save(f);
             // todo : specify diff
             exit(0);
 
@@ -766,7 +764,6 @@ int flow_execute_all_state(flow * fhdl){
 
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
     
-    
     {
         
         remove("R:\\flow\\build\\android\\filter.arithmetic.subtract\\KautilFilterArithmeticSubtract.0.0.1\\4724af5.sqlite");
@@ -777,8 +774,6 @@ int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter
         {
             auto input_len = 10; 
             std::vector<double> arr(10);
-            
-            
             
             flow_push_with_library(fhdl,so_filter);
             flow_push_with_library(fhdl,so_filter);
