@@ -13,7 +13,7 @@
 //#include "kautil/cache/cache.hpp"
 #include "unistd.h"
 #include "fcntl.h"
-
+#include "kautil/cache/cache.hpp"
 
 
 int mkdir_recurse(char * p){
@@ -395,123 +395,6 @@ int cache_primitive_type_set_uri(void * hdl,const char * prfx,const char * filte
     return 0;
 }
 
-//int cache_primitive_type_setup(void * hdl,cache_primitive_type_id const& type){
-//    auto m = get_instance(hdl);
-//    {
-//        struct stat st;
-//        auto cache_path = m->path.data();
-//        if(stat(cache_path,&st)){
-//            m->fd = ::open(cache_path,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
-//        }else{
-//            m->fd = ::open(cache_path,O_RDWR|O_BINARY);
-//        }
-//    }
-//    m->type_id = type;
-//    auto pref =new file_syscall_double_pref<double>{.fd=m->fd}; 
-//    m->pref = pref;
-//    m->obj = new kautil::cache{pref};
-//    
-////    using file_16_struct_type = file_syscall_double_pref<double>; 
-////    auto pref = file_16_struct_type{.fd=m->fd};
-////    auto a = kautil::cache{&pref};
-//    //auto res= a.merge(reinterpret_cast<double*>(filter_input_high(f)),reinterpret_cast<double*>(filter_input_low(f)));
-//    return 0;
-//}
-
-//template<typename primitive_type>
-//kautil::cache<file_syscall_double_pref<primitive_type>>* to_cache_object(void * cache_obj){
-//    return reinterpret_cast<kautil::cache<file_syscall_double_pref<primitive_type>>*>(cache_obj);
-//}
-//
-//template<typename primitive_type>
-//typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context* to_cache_gap_context_object(void * cache_obj){
-//    return reinterpret_cast<typename kautil::cache<file_syscall_double_pref<primitive_type>>::gap_context*>(cache_obj);
-//}
-//
-//bool cache_primitive_type_merge(void * hdl,void * begin,void * end){ 
-//    auto m = get_instance(hdl);
-//    switch (m->type_id) {
-//        case kDouble:{
-//            return to_cache_object<double>(m->obj)->merge(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-//        }
-//    };
-//    return false;
-//}
-//
-//bool cache_primitive_type_exists(void * hdl,void * begin,void * end){
-//    auto m = get_instance(hdl);
-//    switch (m->type_id) {
-//        case kDouble: return to_cache_object<double>(m->obj)->exists(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-//    };
-//    return false;
-//}
-
-//
-//struct flow_cache_gap_context{};
-//flow_cache_gap_context * cache_primitive_type_gap_context(void * hdl,void * begin,void * end){
-//    auto m = get_instance(hdl);
-//    switch (m->type_id) {
-//        case kDouble:return (flow_cache_gap_context*) to_cache_object<double>(m->obj)->gap(reinterpret_cast<double*>(begin),reinterpret_cast<double*>(end));
-//    };
-//    return nullptr;
-//}
-//
-//void cache_primitive_type_gap_context_free(void * hdl,flow_cache_gap_context* ctx){
-//    auto m = get_instance(hdl);
-//    switch (m->type_id) {
-//        case kDouble:to_cache_object<double>(m->obj)->gap_context_free(to_cache_gap_context_object<double>(ctx));
-//    };
-//    
-//}
-//void *cache_primitive_type_initialize(){ return new cache_primitive_type_handler; }
-//void cache_primitive_type_free(void * hdl){ delete get_instance(hdl); }
-
-
-//int flow_cache_save(filter * f){
-//    
-//    auto m = f->m;
-//    auto cache = cache_primitive_type_initialize();
-//    cache_primitive_type_set_uri(cache,m->hdl->local_uri.data(), f->id_hr(f->fm),f->state_id(f->fm));
-//    cache_primitive_type_setup(cache,cache_primitive_type_id::kDouble);
-//    
-//    double from = 0;
-//    double to = 9;
-//    cache_primitive_type_merge(cache,&from,&to);
-//    if(cache_primitive_type_exists(cache,&from,&to)){
-//        printf("exists\n"); fflush(stdout);
-//    }else{
-//        printf("wrong\n"); fflush(stdout);
-//    }
-//    auto ctx = cache_primitive_type_gap_context(cache,&from,&to);
-//    
-//    
-//    
-//    
-//    cache_primitive_type_gap_context_free(cache,ctx);
-//    cache_primitive_type_free(cache);
-//    flow_cache_dump_file(get_instance(cache)->fd);
-//    return 0;
-//}
-
-
-
-int flow_execute(flow * fhdl){
-    for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
-        auto f = fhdl->filters[i];
-        
-        f->set_input(f->fm,filter_input(f),filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
-        f->main(f->fm);
-        
-        if(0==flow_database_save(f)){
-//            flow_cache_save(f);
-            // todo : specify diff
-            exit(0);
-
-            
-        }
-    }
-    return 0;
-}
 
 
 void flow_set_local_uri(flow * hdl,const char * uri){ hdl->local_uri = uri; }
@@ -625,29 +508,6 @@ int filter_database_handler_set_option(filter_database_handler * hdl,int op){
     return 0;    
 }
 
-int flow_database_save(filter * f){
-    auto db =f->m->db; 
-    if(db ){
-        auto instance = db->instance;
-        
-//        auto in = (const char *) f->input(f);
-        auto in = (const char *) filter_input(f);
-//        db->set_input(instance, in, f->input_bytes(f)/f->input_size(f),f->input_size(f));
-        db->set_input(instance, in, filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
-        
-        auto out = (const char *) f->output(f->fm);
-        db->set_output(instance, out, f->output_bytes(f->fm)/f->output_size(f->fm),f->output_size(f->fm));
-        
-        auto index = f->index(f->fm);
-        db->set_index(instance, index);
-    
-        
-        return db->save(instance);
-    } 
-    return 0;
-}
-
-
 
 void * filter_input_high(filter * f){ return f->m->hdl->filters[f->m->pos-1]->output_high(f->m->hdl->filters[f->m->pos - 1]->fm); }
 void * filter_input_low(filter * f){ return f->m->hdl->filters[f->m->pos-1]->output_low(f->m->hdl->filters[f->m->pos - 1]->fm); }
@@ -733,17 +593,102 @@ int flow_push_with_library(flow * fhdl,const char * so_filter){
 
 
 
+int flow_database_save(filter * f){
+    auto db =f->m->db; 
+    if(db ){
+        auto instance = db->instance;
+        
+//        auto in = (const char *) f->input(f);
+        auto in = (const char *) filter_input(f);
+//        db->set_input(instance, in, f->input_bytes(f)/f->input_size(f),f->input_size(f));
+        db->set_input(instance, in, filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
+        
+        auto out = (const char *) f->output(f->fm);
+        db->set_output(instance, out, f->output_bytes(f->fm)/f->output_size(f->fm),f->output_size(f->fm));
+        
+        auto index = f->index(f->fm);
+        db->set_index(instance, index);
+    
+        return db->save(instance);
+    } 
+    return 0;
+}
+
+
+
+int flow_execute(flow * fhdl){
+    for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
+        auto f = fhdl->filters[i];
+        f->set_input(f->fm,filter_input(f),filter_input_bytes(f)/filter_input_size(f),filter_input_size(f));
+        f->main(f->fm);
+        flow_database_save(f);
+    }
+    return 0;
+}
+
+
 int flow_execute_all_state(flow * fhdl){
     while(true){
         uint32_t state=0;
         for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
             auto f = fhdl->filters[i];
-            //printf("%s ",f->state_id(f));
             filter_database_setup(f);
         }
-        //printf("\n"); fflush(stdout);
         flow_execute(fhdl);
+        for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
+            auto f = fhdl->filters[i];
+            if(!f->state_next(f->fm)){
+                state+=1;
+                f->state_reset(f->fm);
+                continue;
+            }
+            break;
+        }
+        if(state == fhdl->filters.size()-fhdl->start_offset) break;
+    }
+    return 0;
+}
+
+
+//int filter_database_load(filter * f){
+//    
+//    return 0;
+//}
+
+int flow_execute_all_state_2(flow * fhdl){
+    while(true){
+        uint32_t state=0;
+        for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
+            auto f = fhdl->filters[i];
+            filter_database_setup(f);
+        }
         
+        {// update each cache
+            for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
+                auto f = fhdl->filters[i];
+                { // load data from database
+                    {// load database of filters[i-1] (i > 0) ............. (D)
+                        { // iterate (D)
+                            {// range.merge(ram) : make output from database into range ........... (A)  
+                                
+                            }
+
+                            {// cache
+                                // merge (A) with org 
+                            }
+                        }
+                    }// db load
+                }
+            }
+        }
+
+        { // update district cache
+            // a -> d
+            // b -> d
+            // c -> d
+            //...
+        }
+        //flow_execute(fhdl);
         for(auto i = fhdl->start_offset; i < fhdl->filters.size(); ++i){
             auto f = fhdl->filters[i];
             if(!f->state_next(f->fm)){
@@ -763,6 +708,7 @@ int flow_execute_all_state(flow * fhdl){
 
 
 int tmain_kautil_flow_static_tmp(const char * database_so,const char * so_filter){
+    
     
     {
         
